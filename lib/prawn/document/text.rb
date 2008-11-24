@@ -99,6 +99,31 @@ module Prawn
         @text_options ||= {}
       end 
                        
+      def move_text_position(dy)   
+         bottom = @bounding_box.stretchy? ? @margin_box.absolute_bottom :
+                                            @bounding_box.absolute_bottom
+         start_new_page if (y - dy) < bottom
+         
+         self.y -= dy       
+      end
+
+      def add_text_content(text, x, y, options)
+        text = font.metrics.convert_text(text,options)
+
+        add_content %Q{
+          BT
+          /#{font.identifier} #{font.size} Tf
+          #{x} #{y} Td
+        }  
+
+        add_content Prawn::PdfObject(text, true) <<
+          " #{options[:kerning] ? 'TJ' : 'Tj'}\n"
+
+        add_content %Q{
+          ET
+        }
+      end  
+
       private 
       
       def process_text_options(options)
@@ -115,14 +140,6 @@ module Prawn
         end                     
 
         options[:size] ||= font.size
-     end
-
-      def move_text_position(dy)   
-         bottom = @bounding_box.stretchy? ? @margin_box.absolute_bottom :
-                                            @bounding_box.absolute_bottom
-         start_new_page if (y - dy) < bottom
-         
-         self.y -= dy       
       end
 
       def wrapped_text(text,options) 
@@ -152,23 +169,6 @@ module Prawn
             move_text_position(options[:spacing]) if options[:spacing]
           end 
         end
-      end  
-      
-      def add_text_content(text, x, y, options)
-        text = font.metrics.convert_text(text,options)
-
-        add_content %Q{
-          BT
-          /#{font.identifier} #{font.size} Tf
-          #{x} #{y} Td
-        }  
-
-        add_content Prawn::PdfObject(text, true) <<
-          " #{options[:kerning] ? 'TJ' : 'Tj'}\n"
-
-        add_content %Q{
-          ET
-        }
       end  
     end
   end
