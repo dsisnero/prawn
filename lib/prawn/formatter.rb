@@ -26,30 +26,8 @@ module Prawn
 
     def wrap_lines(lines, options={})
       options[:align] ||= :left      
-      active_link = nil
-
-      lines.each do |line|
-        document.move_text_position(line.height)
-                         
-        case(options[:align]) 
-        when :left
-          x = document.bounds.absolute_left
-        when :center
-          x = document.bounds.absolute_left + 
-            (document.bounds.width - line.width) / 2.0
-        when :right
-          x = document.bounds.absolute_right - line.width
-        end
-                             
-        line.segments.each do |segment|
-          segment.state.apply!
-          next if segment.chunks.empty?
-          document.add_text_content(segment.to_s,x,document.y,options)
-          x += segment.width
-          document.move_text_position(options[:spacing]) if options[:spacing]
-        end 
-      end
-    end  
-          
+      state = {}
+      lines.each { |line| line.draw_on(document, state, options) }
+    end
   end
 end

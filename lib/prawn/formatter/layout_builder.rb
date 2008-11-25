@@ -1,72 +1,11 @@
+require 'prawn/formatter/chunk'
+require 'prawn/formatter/line'
+require 'prawn/formatter/segment'
 require 'prawn/formatter/state'
 
 module Prawn
   class Formatter
     class LayoutBuilder
-      class Line
-        attr_reader :segments
-
-        def initialize
-          @segments = []
-        end
-
-        def width
-          segments.inject(0) { |sum, segment| sum + segment.width }
-        end
-
-        def height
-          segments.map { |segment| segment.height }.max
-        end
-      end
-
-      class Segment
-        attr_reader :state, :chunks
-        attr_accessor :height
-
-        def initialize(state, height)
-          @state = state
-          @height = height
-          @chunks = []
-        end
-
-        def width
-          chunks.inject(0) { |sum, chunk| sum + chunk.width }
-        end
-
-        def height
-          chunks.all? { |chunk| chunk.ignore_at_eol? } ? 0 : @height
-        end
-
-        def to_s
-          chunks.join
-        end
-
-        def inspect
-          "#<Segment:%x width=%d height=%d chunks=%s>" % [object_id, width, height, chunks.inspect]
-        end
-      end
-
-      class Chunk < Struct.new(:width, :text)
-        # Because segments are split on whitespace, any chunk that
-        # contains whitespace will be entirely whitespace and will
-        # represent a chunk where a line may be broken.
-        def line_break?
-          text =~ /\s/
-        end
-
-        def ignore_at_eol?
-          text =~ /\s/
-        end
-
-        def to_s
-          text
-        end
-
-        def inspect
-          "#{text.inspect}:#{width}"
-        end
-      end
-
       def self.layout(document, parser, line_width, options={})
         new(document, parser, line_width, options).lines
       end
@@ -92,6 +31,10 @@ module Prawn
 
       private
 
+        def metrics
+          @state.font.metrics
+        end
+
         def layout!
           new_line!
 
@@ -103,7 +46,7 @@ module Prawn
 
                 chunks = line.scan(@scan_pattern)
                 chunks.each do |text|
-                  width = @state.font.metrics.string_width(text, @state.font_size, :kerning => @kerning)
+                  width = metrics.string_width(text, @state.font_size, :kerning => @kerning)
                   chunk = Chunk.new(width, text)
 
                   if (width + @current_line.width).round > @line_width
@@ -127,12 +70,18 @@ module Prawn
               when :font then
                 @state = @state.change(:font => token[:options][:font],
                   :color => token[:options][:color], :size => token[:options][:size])
+              when :a then
+                @current_line.segments << LinkStartSegment.new(@state, token[:options][:name], token[:options][:href])
               else
                 raise ArgumentError, "unknown tag type #{token[:tag]}"
               end
               add_segment!
             when :close
-              @state = @state.previous
+              if token[:tag] == :a
+                @current_line.segments << LinkEndSegment.new(@state)
+              else
+                @state = @state.previous
+              end
               add_segment!
             else
               raise ArgumentError, "[BUG] unknown token type #{token[:type].inspect} (#{token.inspect})"
@@ -157,7 +106,7 @@ module Prawn
         end
 
         def add_segment!
-          @current_segment = Segment.new(@state, @state.font.height)
+          @current_segment = Segment.new(@state)
           @current_line.segments << @current_segment
         end
     end
