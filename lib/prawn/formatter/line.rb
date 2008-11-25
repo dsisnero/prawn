@@ -12,12 +12,12 @@ module Prawn
         segments.inject(0) { |sum, segment| sum + segment.width }
       end
 
-      def height
-        segments.map { |segment| segment.height }.max
+      def height(include_blank=false)
+        segments.map { |segment| segment.height(include_blank) }.max
       end
 
       def draw_on(document, state, options={})
-        document.move_text_position(height)
+        document.move_text_position(height(true))
 
         case(options[:align]) 
         when :left

@@ -15,7 +15,8 @@ module Prawn
         chunks.inject(0) { |sum, chunk| sum + chunk.width }
       end
 
-      def height
+      def height(ignore_blank=false)
+        return @height if ignore_blank
         chunks.all? { |chunk| chunk.ignore_at_eol? } ? 0 : @height
       end
 
@@ -61,17 +62,17 @@ module Prawn
           label, destination = case @name
             when nil then return
             when /^zoom=([\d\.]+):(.*)$/
-              [$2, document.dest_xyz(draw_state[:x], document.y + @height, $1.to_f)]
+              [$2, document.dest_xyz(draw_state[:x], document.y + height(true), $1.to_f)]
             when /^fit:(.*)$/
               [$1, document.dest_fit]
             when /^fith:(.*)$/
-              [$1, document.dest_fit_horizontally(document.y + @height)]
+              [$1, document.dest_fit_horizontally(document.y + height(true))]
             when /^fitv:(.*)$/
               [$1, document.dest_fit_vertically(draw_state[:x])]
             when /^fitb:(.*)$/
               [$1, document.dest_fit_bounds]
             when /^fitbh:(.*)$/
-              [$1, document.dest_fit_bounds_horizontally(document.y + @height)]
+              [$1, document.dest_fit_bounds_horizontally(document.y + height(true))]
             when /^fitbv:(.*)$/
               [$1, document.dest_fit_bounds_vertically(draw_state[:x])]
             else
@@ -105,7 +106,7 @@ module Prawn
 
         if link_state
           rect = [link_state.last, document.y + state.font.descender,
-            draw_state[:x], document.y + @height]
+            draw_state[:x], document.y + height(true)]
           document.link_annotation(rect, :Dest => link_state.first)
         end
 
