@@ -76,7 +76,7 @@ module Prawn
             when /^fitbv:(.*)$/
               [$1, document.dest_fit_bounds_vertically(draw_state[:x])]
             else
-              [@name, document.dest_xyz(nil, nil, nil)]
+              [@name, document.dest_xyz(document.bounds.left, document.bounds.top, nil)]
             end
           document.add_dest(label, destination)
         end
