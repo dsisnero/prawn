@@ -107,7 +107,7 @@ module Prawn
         if link_state
           rect = [link_state.last, document.y + state.font.descender,
             draw_state[:x], document.y + height(true)]
-          document.link_annotation(rect, :Dest => link_state.first)
+          document.link_annotation(rect, :Dest => link_state.first, :Border => [0, 0, 0])
         end
 
         return link_state

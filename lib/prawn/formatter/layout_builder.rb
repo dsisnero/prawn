@@ -72,16 +72,14 @@ module Prawn
                   :color => token[:options][:color], :size => token[:options][:size])
               when :a then
                 @current_line.segments << LinkStartSegment.new(@state, token[:options][:name], token[:options][:href])
+                @state = @state.change(:color => "0000ff")
               else
                 raise ArgumentError, "unknown tag type #{token[:tag]}"
               end
               add_segment!
             when :close
-              if token[:tag] == :a
-                @current_line.segments << LinkEndSegment.new(@state)
-              else
-                @state = @state.previous
-              end
+              @current_line.segments << LinkEndSegment.new(@state) if token[:tag] == :a
+              @state = @state.previous
               add_segment!
             else
               raise ArgumentError, "[BUG] unknown token type #{token[:type].inspect} (#{token.inspect})"
