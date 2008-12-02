@@ -2,18 +2,21 @@ module Prawn
   class Formatter
 
     class Line
-      attr_reader :segments
+      attr_reader :tokens
 
-      def initialize
-        @segments = []
+      def initialize(tokens)
+        @tokens = tokens
+        @tokens.pop while @tokens.last && @tokens.last.discardable?
+        @spaces = @tokens.select { |token| token.stretchable? }.length
+        @spaces = 1 if @spaces < 1
       end
 
       def width
-        segments.inject(0) { |sum, segment| sum + segment.width }
+        tokens.inject(0) { |sum, token| sum + token.width }
       end
 
       def height(include_blank=false)
-        segments.map { |segment| segment.height(include_blank) }.max
+        tokens.map { |token| token.height(include_blank) }.max
       end
 
       def draw_on(document, state, options={})
@@ -26,23 +29,20 @@ module Prawn
           state[:x] = document.bounds.absolute_left + (document.bounds.width - width) / 2.0
         when :right
           state[:x] = document.bounds.absolute_right - width
+        when :justify
+          state[:x] = document.bounds.absolute_left
+          state[:padding] = (document.bounds.width - width) / @spaces
         end
                              
-        LinkStartSegment.resume(document, state)
+        LinkStartInstruction.resume(document, state)
+        state[:accumulator] = nil
 
-        segments.each { |segment| segment.draw(document, state, options) }
+        tokens.each { |token| token.draw(document, state, options) }
 
-        LinkEndSegment.continue(segments.last.state, document, state)
+        LinkEndInstruction.pause(tokens.last.state, document, state)
 
         document.move_text_position(options[:spacing]) if options[:spacing]
       end
-
-      private
-
-        def carry_link_over_line_break(document, state)
-          save = LinkEndSegment.draw(document, state)
-          state[:link_stack].push(save)
-        end
     end
 
   end

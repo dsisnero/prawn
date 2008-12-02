@@ -1,6 +1,5 @@
-require 'prawn/formatter/chunk'
+require 'prawn/formatter/instruction'
 require 'prawn/formatter/line'
-require 'prawn/formatter/segment'
 require 'prawn/formatter/state'
 
 module Prawn
@@ -19,13 +18,15 @@ module Prawn
         @scan_pattern = options[:mode] == :character ? /./ : /\S+|\s+/
         @kerning = options[:kerning]
         @current_segment = @current_line = nil
-        @lines = []
+        @tolerance = options.fetch(:tolerance, 1000)
 
         @state = State.new(document,
           :font       => options[:font] || document.font,
           :font_size  => options[:size] || document.font.size,
-          :font_style => options[:style] || :normal)
+          :font_style => options[:style] || :normal,
+          :kerning    => options[:kerning])
 
+        reduce!
         layout!
       end
 
@@ -35,28 +36,25 @@ module Prawn
           @state.font.metrics
         end
 
-        def layout!
-          new_line!
+        class Break
+          attr_reader :via, :badness, :start
+          attr_accessor :width
+
+          def initialize(start, badness, via=nil)
+            @start = start
+            @badness = badness
+            @via = via
+            @width = 0
+          end
+        end
+
+        def reduce!
+          @tokens = [StrutInstruction.new(@state, 36)]
 
           @parser.each do |token|
             case token[:type]
             when :text
-              token[:text].lines.each_with_index do |line, index|
-                new_line! if index > 0
-
-                chunks = line.scan(@scan_pattern)
-                chunks.each do |text|
-                  width = metrics.string_width(text, @state.font_size, :kerning => @kerning)
-                  chunk = Chunk.new(width, text)
-
-                  if (width + @current_line.width).round > @line_width
-                    new_line!
-                    next if chunk.ignore_at_eol?
-                  end
-
-                  @current_segment.chunks << chunk
-                end
-              end
+              @tokens.concat(token[:text].map { |lex| TextInstruction.new(@state, lex) })
             when :open
               case token[:tag]
               when :b then
@@ -71,41 +69,83 @@ module Prawn
                 @state = @state.change(:font => token[:options][:font],
                   :color => token[:options][:color], :size => token[:options][:size])
               when :a then
-                @current_line.segments << LinkStartSegment.new(@state, token[:options][:name], token[:options][:href])
+                @tokens.push LinkStartInstruction.new(@state, token[:options][:name], token[:options][:href])
                 @state = @state.change(:color => "0000ff")
               else
                 raise ArgumentError, "unknown tag type #{token[:tag]}"
               end
-              add_segment!
             when :close
-              @current_line.segments << LinkEndSegment.new(@state) if token[:tag] == :a
+              @tokens.push LinkEndInstruction.new(@state) if token[:tag] == :a
               @state = @state.previous
-              add_segment!
             else
               raise ArgumentError, "[BUG] unknown token type #{token[:type].inspect} (#{token.inspect})"
             end
           end
         end
 
-        def new_line!
-          old_line = @current_line
-          old_segment = @current_segment
+        def find_breaks(tolerance=@tolerance)
+          breaks = [Break.new(0,0)]
+          current = 0
 
-          @current_line = Line.new
-          add_segment!
+          best_score = 10_000
+          best = nil
 
-          if old_segment
-            while old_segment.chunks.any? && !old_segment.chunks.last.line_break?
-              @current_segment.chunks.push(old_segment.chunks.pop)
+          while current < breaks.length
+            breaks[current].start.upto(@tokens.length-1) do |index|
+              token = @tokens[index]
+              if token.break?
+                break if breaks[current].width + token.width(:nondiscardable) > @line_width
+                breaks[current].width += token.width(:nondiscardable)
+
+                discriminant = @line_width - breaks[current].width
+                discriminant = 10_0000 if discriminant < 0
+                badness = discriminant ** 2
+
+                if badness <= tolerance
+                  breaks << Break.new(index+1, badness, breaks[current])
+                end
+
+                break if breaks[current].width + token.width(:discardable) > @line_width
+                breaks[current].width += token.width(:discardable)
+              else
+                break if breaks[current].width + token.width > @line_width
+                breaks[current].width += token.width
+              end
+
+              if index == @tokens.length - 1
+                score = 0
+                node = breaks[current]
+
+                loop do
+                  score += breaks[current].badness
+                  node = node.via
+                  break unless node
+                end
+
+                if score < best_score
+                  best_score = score
+                  best = breaks[current]
+                end
+              end
             end
+
+            current += 1
           end
 
-          @lines << @current_line
+          return best || find_breaks(tolerance*2)
         end
 
-        def add_segment!
-          @current_segment = Segment.new(@state)
-          @current_line.segments << @current_segment
+        def layout!
+          break_point = find_breaks
+
+          last_line = Line.new(@tokens[break_point.start..-1])
+          last_line.tokens << StrutInstruction.new(last_line.tokens.last.state, @line_width - last_line.width)
+
+          @lines = [last_line]
+          while break_point.via
+            @lines.unshift Line.new(@tokens[break_point.via.start...break_point.start])
+            break_point = break_point.via
+          end
         end
     end
   end

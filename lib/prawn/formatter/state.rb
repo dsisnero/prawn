@@ -18,12 +18,18 @@ module Prawn
           @font_size  = @previous.font_size
           @font_style = @previous.font_style
           @color      = @previous.color
+          @kerning    = @previous.kerning?
         end
 
         @font       = options[:font]       || @font
         @font_size  = options[:font_size]  || @font_size
         @font_style = options[:font_style] || @font_style || :normal
         @color      = options[:color]      || @color      || "000000"
+        @kerning    = options.fetch(:kerning, @kerning)
+      end
+
+      def kerning?
+        @kerning
       end
 
       def bold?

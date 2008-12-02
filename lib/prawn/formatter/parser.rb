@@ -24,7 +24,7 @@ module Prawn
           scanner = StringScanner.new(text)
           while !scanner.eos?
             text = scanner.scan(/[^<&]+/)
-            @tokens << { :type => :text, :text => text } if text
+            @tokens << { :type => :text, :text => text.scan(/-+|\s+|[^-\s]+/) } if text
 
             if scanner.scan(/</)
               parse_tag(scanner, stack)
@@ -50,15 +50,40 @@ module Prawn
           entity = scanner.scan(/(?:#x?)?\w+/) or raise InvalidFormat, "bad format for entity at #{scanner.pos} -> #{scanner.rest.inspect}"
           scanner.scan(/;/) or raise InvalidFormat, "missing semicolon to terminate entity at #{scanner.pos} -> #{scanner.rest.inspect}"
 
-          case entity
-          when /#(\d+)/ then 
-            @tokens << { :type => :text, :text => [$1.to_i].pack("U*") }
-          when /#x([0-9a-f]+)/ then
-            @tokens << { :type => :text, :text => [$1.to_i(16)].pack("U*") }
-          else
-            result = ENTITY_MAP[entity]
-            raise InvalidFormat, "unrecognized entity #{entity.inspect} at #{scanner.pos} -> #{scanner.rest.inspect}"
-            @tokens << { :type => :text, :text => result }
+          text = case entity
+            when /#(\d+)/ then [$1.to_i].pack("U*")
+            when /#x([0-9a-f]+)/ then [$1.to_i(16)].pack("U*")
+            else
+              result = ENTITY_MAP[entity]
+              raise InvalidFormat, "unrecognized entity #{entity.inspect} at #{scanner.pos} -> #{scanner.rest.inspect}"
+              result
+            end
+
+          @tokens << { :type => text, :text => [Lexeme.new(text)] }
+        end
+
+        class Lexeme
+          def initialize(lexeme)
+            @lexeme = lexeme
+          end
+
+          def break?
+            return @break if defined?(@break)
+            @break = @lexeme =~ /[-\s]/
+          end
+
+          def discardable?
+            return @discardable if defined?(@discardable)
+            @discardable = (@lexeme =~ /\s/)
+          end
+
+          def stretchable?
+            return @stretchable if defined?(@stretchable)
+            @stretchable = (@lexeme =~ /\s/)
+          end
+
+          def to_s
+            @lexeme
           end
         end
 
