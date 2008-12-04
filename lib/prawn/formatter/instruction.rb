@@ -9,6 +9,10 @@ module Prawn
         @height = state.font.height
       end
 
+      def spaces
+        0
+      end
+
       def width(*args)
         0
       end
@@ -43,6 +47,10 @@ module Prawn
       def initialize(state, text)
         super(state)
         @text = text
+      end
+
+      def spaces
+        @spaces ||= @text.scan(/ /).length
       end
 
       def height(ignore_discardable=false)
@@ -96,9 +104,16 @@ module Prawn
 
       def draw!(document, draw_state, options={})
         state.apply!
-        document.add_text_content(@text, draw_state[:x], document.y, options)
-        #draw_state[:x] += draw_state[:padding] if options[:align] == :justify && stretchable?
+
+        text = state.font.metrics.convert_text(@text, options)
+        instruction = text.is_a?(Array) ? "TJ" : "Tj"
+        document.send(:add_content, "#{Prawn::PdfObject(text, true)} #{instruction}")
+
         draw_state[:x] += width
+
+        if options[:align] == :justify
+          draw_state[:x] += draw_state[:padding] * spaces
+        end
       end
     end
 
@@ -113,6 +128,7 @@ module Prawn
       def draw(document, draw_state, options={})
         flush(document, draw_state, options)
         draw_state[:x] += width
+        document.send(:add_content, "#{width} 0t Td")
       end
     end
 
@@ -172,8 +188,8 @@ module Prawn
     end
 
     class LinkEndInstruction < Instruction
-      def self.pause(state, document, draw_state)
-        save = new(state).draw(document, draw_state)
+      def self.pause(state, document, draw_state, options)
+        save = new(state).draw(document, draw_state, options)
         draw_state[:link_stack].push(save) if save
       end
 

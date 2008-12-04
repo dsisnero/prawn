@@ -107,22 +107,18 @@ module Prawn
          self.y -= dy       
       end
 
-      def add_text_content(text, x, y, options)
-        text = font.metrics.convert_text(text,options)
+      def add_text_content(text, x, y, options, &block)
+        text = font.metrics.convert_text(text,options, &block)
 
-        add_content %Q{
-          BT
-          /#{font.identifier} #{font.size} Tf
-          #{x} #{y} Td
-        }  
+        add_content "BT"
+        add_content "/#{font.identifier} #{font.size} Tf"
+        add_content "#{x} #{y} Td"
 
-        add_content Prawn::PdfObject(text, true) <<
-          " #{options[:kerning] ? 'TJ' : 'Tj'}\n"
+        instruction = text.is_a?(Array) ? "TJ" : "Tj"
+        add_content "#{Prawn::PdfObject(text, true)} #{instruction}"
 
-        add_content %Q{
-          ET
-        }
-      end  
+        add_content "ET"
+      end
 
       private 
       

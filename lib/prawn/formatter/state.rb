@@ -74,9 +74,10 @@ module Prawn
           :font_size => size)
       end
 
-      def apply!
+      def apply!(force=true)
         if document.font.name != font.name || document.font.size != font_size
           document.font(font.name, :size => font_size)
+          document.send(:add_content, "/#{font.identifier} #{font_size} Tf")
         end
 
         if document.fill_color != color
