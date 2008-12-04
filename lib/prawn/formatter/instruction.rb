@@ -128,7 +128,7 @@ module Prawn
       def draw(document, draw_state, options={})
         flush(document, draw_state, options)
         draw_state[:x] += width
-        document.send(:add_content, "#{width} 0t Td")
+        document.send(:add_content, "#{width} 0 Td")
       end
     end
 
