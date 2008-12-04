@@ -15,6 +15,7 @@ require "prawn/document/internals"
 require "prawn/document/span"
 require "prawn/document/annotations"
 require "prawn/document/destinations"
+require "prawn/document/text_object"
 
 module Prawn
   class Document  
@@ -26,6 +27,7 @@ module Prawn
     include Prawn::Images
     include Text                             
     include PageGeometry                             
+    include TextObject
     
     attr_accessor :y, :margin_box
     attr_reader   :margins, :page_size, :page_layout
