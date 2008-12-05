@@ -24,7 +24,7 @@ module Prawn
           scanner = StringScanner.new(text)
           while !scanner.eos?
             text = scanner.scan(/[^<&]+/)
-            @tokens << { :type => :text, :text => text.scan(/-+|\s+|[^-\s]+/) } if text
+            @tokens << { :type => :text, :text => text.scan(/[-—]+|\s+|[^-\s]+/) } if text
 
             if scanner.scan(/</)
               parse_tag(scanner, stack)
@@ -41,9 +41,10 @@ module Prawn
         # TODO: is it worth fleshing this out with a full list of all recognized
         # HTML entities?
         ENTITY_MAP = {
-          "lt"  => "<",
-          "gt"  => ">",
-          "amp" => "&"
+          "lt"    => "<",
+          "gt"    => ">",
+          "amp"   => "&",
+          "mdash" => "—"
         }
 
         def parse_entity(scanner)
@@ -55,36 +56,13 @@ module Prawn
             when /#x([0-9a-f]+)/ then [$1.to_i(16)].pack("U*")
             else
               result = ENTITY_MAP[entity]
-              raise InvalidFormat, "unrecognized entity #{entity.inspect} at #{scanner.pos} -> #{scanner.rest.inspect}"
+              if result.nil?
+                raise InvalidFormat, "unrecognized entity #{entity.inspect} at #{scanner.pos} -> #{scanner.rest.inspect}"
+              end
               result
             end
 
-          @tokens << { :type => text, :text => [Lexeme.new(text)] }
-        end
-
-        class Lexeme
-          def initialize(lexeme)
-            @lexeme = lexeme
-          end
-
-          def break?
-            return @break if defined?(@break)
-            @break = @lexeme =~ /[-\s]/
-          end
-
-          def discardable?
-            return @discardable if defined?(@discardable)
-            @discardable = (@lexeme =~ /\s/)
-          end
-
-          def stretchable?
-            return @stretchable if defined?(@stretchable)
-            @stretchable = (@lexeme =~ /\s/)
-          end
-
-          def to_s
-            @lexeme
-          end
+          @tokens << { :type => :text, :text => text }
         end
 
         def parse_tag(scanner, stack)

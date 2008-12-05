@@ -46,7 +46,7 @@ module Prawn
 
       def initialize(state, text)
         super(state)
-        @text = text
+        @text = state.font.normalize_encoding(text)
       end
 
       def spaces
@@ -63,7 +63,7 @@ module Prawn
 
       def break?
         return @break if defined?(@break)
-        @break = @text =~ /[-\s]/
+        @break = @text =~ /[-—\s]/
       end
 
       def discardable?

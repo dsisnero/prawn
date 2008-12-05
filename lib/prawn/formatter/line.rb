@@ -2,21 +2,21 @@ module Prawn
   class Formatter
 
     class Line
-      attr_reader :tokens
+      attr_reader :instructions
 
-      def initialize(tokens)
-        @tokens = tokens
-        @tokens.pop while @tokens.last && @tokens.last.discardable?
-        @spaces = @tokens.inject(0) { |sum, token| sum + token.spaces }
+      def initialize(instructions)
+        @instructions = instructions
+        @instructions.pop while @instructions.last && @instructions.last.discardable?
+        @spaces = @instructions.inject(0) { |sum, instruction| sum + instruction.spaces }
         @spaces = [1, @spaces].max
       end
 
       def width
-        tokens.inject(0) { |sum, token| sum + token.width }
+        instructions.inject(0) { |sum, instruction| sum + instruction.width }
       end
 
       def height(include_blank=false)
-        tokens.map { |token| token.height(include_blank) }.max
+        instructions.map { |instruction| instruction.height(include_blank) }.max
       end
 
       def draw_on(document, state, options={})
@@ -42,9 +42,9 @@ module Prawn
         LinkStartInstruction.resume(document, state)
         state[:accumulator] = nil
 
-        tokens.each { |token| token.draw(document, state, options) }
+        instructions.each { |instruction| instruction.draw(document, state, options) }
 
-        LinkEndInstruction.pause(tokens.last.state, document, state, options)
+        LinkEndInstruction.pause(instructions.last.state, document, state, options)
       end
     end
 

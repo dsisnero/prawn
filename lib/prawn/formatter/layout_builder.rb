@@ -15,9 +15,7 @@ module Prawn
         @document = document
         @parser = parser
         @line_width = line_width.round
-        @scan_pattern = options[:mode] == :character ? /./ : /\S+|\s+/
         @kerning = options[:kerning]
-        @current_segment = @current_line = nil
         @tolerance = options.fetch(:tolerance, 1000)
 
         @state = State.new(document,
@@ -48,13 +46,14 @@ module Prawn
           end
         end
 
+        # Reduces the tokens from the parser into a series of instructions.
         def reduce!
-          @tokens = [StrutInstruction.new(@state, 36)]
+          @instructions = []
 
           @parser.each do |token|
             case token[:type]
             when :text
-              @tokens.concat(token[:text].map { |lex| TextInstruction.new(@state, lex) })
+              @instructions.concat(token[:text].map { |lex| TextInstruction.new(@state, lex) })
             when :open
               case token[:tag]
               when :b then
@@ -69,13 +68,13 @@ module Prawn
                 @state = @state.change(:font => token[:options][:font],
                   :color => token[:options][:color], :size => token[:options][:size])
               when :a then
-                @tokens.push LinkStartInstruction.new(@state, token[:options][:name], token[:options][:href])
+                @instructions.push LinkStartInstruction.new(@state, token[:options][:name], token[:options][:href])
                 @state = @state.change(:color => "0000ff")
               else
                 raise ArgumentError, "unknown tag type #{token[:tag]}"
               end
             when :close
-              @tokens.push LinkEndInstruction.new(@state) if token[:tag] == :a
+              @instructions.push LinkEndInstruction.new(@state) if token[:tag] == :a
               @state = @state.previous
             else
               raise ArgumentError, "[BUG] unknown token type #{token[:type].inspect} (#{token.inspect})"
@@ -104,26 +103,26 @@ module Prawn
           best = nil
 
           while current < lines.length
-            # For each potential line-start seen so far, we look at the tokens
+            # For each potential line-start seen so far, we look at the instructions
             # after it, adding new potential lines to the "lines" list.
-            lines[current].at.upto(@tokens.length-1) do |index|
-              token = @tokens[index]
+            lines[current].at.upto(@instructions.length-1) do |index|
+              instruction = @instructions[index]
 
-              # if this token represents a character or character-sequence
+              # if this instruction represents a character or character-sequence
               # where the line can be broken (a space, a hyphen, etc.), then
               # we see if this really is a feasible place for a line break.
-              if token.break?
+              if instruction.break?
 
-                # if the token is non-discardable (a hyphen) and adding it
+                # if the instruction is non-discardable (a hyphen) and adding it
                 # to the line would make the line too long, then we can't
-                # break the line here, and all subsequent tokens will also be
+                # break the line here, and all subsequent instructions will also be
                 # invalid as line breaks following the current line break. So
                 # we break out and try the next potential line in the queue.
-                break if !token.discardable? && lines[current].width + token.width > @line_width
+                break if !instruction.discardable? && lines[current].width + instruction.width > @line_width
 
                 # Add any non-discardable width to the length of the current
                 # line. This adds hyphens and such, but not spaces.
-                lines[current].width += token.width(:nondiscardable)
+                lines[current].width += instruction.width(:nondiscardable)
 
                 # Compute what the "badness" of this line would be if it were
                 # broken at this point. Basically, the more the a line has to
@@ -133,7 +132,7 @@ module Prawn
 
                 # If the computed badness is within the acceptible tolerance,
                 # then we add a new line start to the queue, where the line
-                # starts immediately after this token.
+                # starts immediately after this instruction.
                 #
                 # Also, If adding the badness to the current line gives a worse
                 # score than the best one seen so far, don't bother adding
@@ -144,14 +143,14 @@ module Prawn
                 end
 
                 # At this point, we try to add the discardable width of the
-                # token to the current line. The discardable width is the
+                # instruction to the current line. The discardable width is the
                 # width of any spaces, etc.
-                break if lines[current].width + token.width(:discardable) > @line_width
-                lines[current].width += token.width(:discardable)
+                break if lines[current].width + instruction.width(:discardable) > @line_width
+                lines[current].width += instruction.width(:discardable)
 
-              elsif lines[current].width + token.width > @line_width
+              elsif lines[current].width + instruction.width > @line_width
                 if index == lines[current].at
-                  # If the line has nothing in it, and yet the next token
+                  # If the line has nothing in it, and yet the next instruction
                   # still won't fit on the line, then we are dealing with a
                   # word that is too long to be broken. In this case, just
                   # add the word to the line and move on. We penalize the
@@ -161,21 +160,21 @@ module Prawn
                   lines[current].width = @line_width
                 else
                   # if the line already has something in it, and adding the
-                  # next token would make it too long for the line, then we
-                  # just stop adding more tokens to this line, and start
+                  # next instruction would make it too long for the line, then we
+                  # just stop adding more instructions to this line, and start
                   # looking at the next potential line in the queue.
                   break
                 end
 
               else
-                lines[current].width += token.width
+                lines[current].width += instruction.width
               end
 
               # If we've made it this far, and we're at the end of the list of
-              # tokens, then the current line is a terminal one (it is the last
+              # instructions, then the current line is a terminal one (it is the last
               # line of this paragraph). See if the score is better than the
               # best score we've seen so far.
-              if index == @tokens.length-1 && (best.nil? || lines[current].badness < best.badness)
+              if index == @instructions.length-1 && (best.nil? || lines[current].badness < best.badness)
                 best = lines[current]
               end
             end
@@ -193,12 +192,11 @@ module Prawn
         def layout!
           break_point = find_breaks
 
-          last_line = Line.new(@tokens[break_point.at..-1])
-          last_line.tokens << StrutInstruction.new(last_line.tokens.last.state, @line_width - last_line.width)
+          last_line = Line.new(@instructions[break_point.at..-1])
 
           @lines = [last_line]
           while break_point.parent
-            @lines.unshift Line.new(@tokens[break_point.parent.at...break_point.at])
+            @lines.unshift Line.new(@instructions[break_point.parent.at...break_point.at])
             break_point = break_point.parent
           end
         end
