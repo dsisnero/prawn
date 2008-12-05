@@ -12,11 +12,7 @@ module Prawn
     end
 
     def wrap(options={})
-      lines = layout(document.bounds.right,
-        :size => options[:size], :font_family => options[:font_family],
-        :style => options[:style], :mode => options[:wrap],
-        :kerning => options[:kerning])
-
+      lines = layout(document.bounds.right, options)
       wrap_lines(lines, options)
     end
 
@@ -25,9 +21,15 @@ module Prawn
     end
 
     def wrap_lines(lines, options={})
-      options[:align] ||= :left      
-      state = {}
-      lines.each { |line| line.draw_on(document, state, options) }
+      options[:align] ||= :left
+      state = { :cookies => {}, :last_x => 0, :y => document.y }
+      document.text_object do |text|
+        text.move(document.bounds.absolute_left, state[:y])
+        state[:text] = text
+        lines.each { |line| line.draw_on(document, state, options) }
+      end
+
+      document.y = state[:y]
     end
   end
 end

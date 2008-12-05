@@ -1,8 +1,12 @@
+require 'prawn/graphics/color'
+
 module Prawn
   class Document
 
     module TextObject
       class Proxy
+        include Prawn::Graphics::Color
+
         RENDER_MODES = {
           :fill             => 0,
           :stroke           => 1,
@@ -81,6 +85,10 @@ module Prawn
 
         def to_str
           @content
+        end
+
+        def add_content(string)
+          @content << string << "\n"
         end
       end
 

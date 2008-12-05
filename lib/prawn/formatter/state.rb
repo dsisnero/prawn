@@ -74,14 +74,16 @@ module Prawn
           :font_size => size)
       end
 
-      def apply!(force=true)
-        if document.font.name != font.name || document.font.size != font_size
+      def apply!(text_object, cookies)
+        if cookies[:font] != [font.name, font_size]
+          cookies[:font] = [font.name, font_size]
           document.font(font.name, :size => font_size)
-          document.send(:add_content, "/#{font.identifier} #{font_size} Tf")
+          text_object.font(font.identifier, font_size)
         end
 
-        if document.fill_color != color
-          document.fill_color(color)
+        if cookies[:color] != color
+          cookies[:color] = color
+          text_object.fill_color(color)
         end
       end
 

@@ -98,7 +98,6 @@ module Prawn
                 breaks[current].width += token.width(:nondiscardable)
 
                 discriminant = @line_width - breaks[current].width
-                discriminant = 10_0000 if discriminant < 0
                 badness = discriminant ** 2
 
                 if badness <= tolerance
@@ -132,7 +131,7 @@ module Prawn
             current += 1
           end
 
-          return best || find_breaks(tolerance*2)
+          return best || find_breaks(tolerance+1000)
         end
 
         def layout!

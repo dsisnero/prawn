@@ -20,24 +20,24 @@ module Prawn
       end
 
       def draw_on(document, state, options={})
-        document.move_text_position(height(true))
-        document.send(:add_content, "BT")
-
         case(options[:align]) 
         when :left
-          state[:x] = document.bounds.absolute_left
+          state[:x] = 0
         when :center
-          state[:x] = document.bounds.absolute_left + (document.bounds.width - width) / 2.0
+          state[:x] = (document.bounds.width - width) / 2.0
         when :right
-          state[:x] = document.bounds.absolute_right - width
+          state[:x] = document.bounds.width - width
         when :justify
-          state[:x] = document.bounds.absolute_left
+          state[:x] = 0
           state[:padding] = (document.bounds.width - width) / @spaces
-          document.send(:add_content, "#{state[:padding]} Tw")
+          state[:text].word_space(state[:padding])
         end
 
-        document.send(:add_content, "#{state[:x]} #{document.y} Td")
-        document.send(:add_content, "/#{document.font.identifier} #{document.font.size} Tf")
+        state[:y] -= height + (options[:spacing] || 0)
+
+        relative_x = state[:x] - state[:last_x]
+        state[:last_x] = state[:x]
+        state[:text].move(relative_x, -(height + (options[:spacing] || 0)))
 
         LinkStartInstruction.resume(document, state)
         state[:accumulator] = nil
@@ -45,9 +45,6 @@ module Prawn
         tokens.each { |token| token.draw(document, state, options) }
 
         LinkEndInstruction.pause(tokens.last.state, document, state, options)
-
-        document.send(:add_content, "ET")
-        document.move_text_position(options[:spacing]) if options[:spacing]
       end
     end
 

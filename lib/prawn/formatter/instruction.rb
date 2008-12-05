@@ -103,12 +103,11 @@ module Prawn
       end
 
       def draw!(document, draw_state, options={})
-        state.apply!
+        state.apply!(draw_state[:text], draw_state[:cookies])
 
         text = state.font.metrics.convert_text(@text, options)
-        instruction = text.is_a?(Array) ? "TJ" : "Tj"
-        document.send(:add_content, "#{Prawn::PdfObject(text, true)} #{instruction}")
 
+        draw_state[:text].show(text)
         draw_state[:x] += width
 
         if options[:align] == :justify
@@ -128,7 +127,8 @@ module Prawn
       def draw(document, draw_state, options={})
         flush(document, draw_state, options)
         draw_state[:x] += width
-        document.send(:add_content, "#{width} 0 Td")
+        draw_state[:text].move(draw_state[:x] - draw_state[:last_x], 0)
+        draw_state[:last_x] = draw_state[:x]
       end
     end
 
@@ -155,22 +155,25 @@ module Prawn
       private
 
         def draw_destination(document, draw_state)
+          x = document.bounds.absolute_left + draw_state[:x]
+          y = draw_state[:y] + height
+
           label, destination = case @name
             when nil then return
             when /^zoom=([\d\.]+):(.*)$/
-              [$2, document.dest_xyz(draw_state[:x], document.y + height(true), $1.to_f)]
+              [$2, document.dest_xyz(x, y, $1.to_f)]
             when /^fit:(.*)$/
               [$1, document.dest_fit]
             when /^fith:(.*)$/
-              [$1, document.dest_fit_horizontally(document.y + height(true))]
+              [$1, document.dest_fit_horizontally(y)]
             when /^fitv:(.*)$/
-              [$1, document.dest_fit_vertically(draw_state[:x])]
+              [$1, document.dest_fit_vertically(x)]
             when /^fitb:(.*)$/
               [$1, document.dest_fit_bounds]
             when /^fitbh:(.*)$/
-              [$1, document.dest_fit_bounds_horizontally(document.y + height(true))]
+              [$1, document.dest_fit_bounds_horizontally(y)]
             when /^fitbv:(.*)$/
-              [$1, document.dest_fit_bounds_vertically(draw_state[:x])]
+              [$1, document.dest_fit_bounds_vertically(x)]
             else
               [@name, document.dest_xyz(document.bounds.left, document.bounds.top, nil)]
             end
@@ -199,8 +202,11 @@ module Prawn
         link_state = (draw_state[:link_stack] || []).pop
 
         if link_state
-          rect = [link_state.last, document.y + state.font.descender,
-            draw_state[:x], document.y + height(true)]
+          x1 = document.bounds.absolute_left + link_state.last
+          x2 = document.bounds.absolute_left + draw_state[:x]
+          y = draw_state[:y]
+
+          rect = [x1, y + state.font.descender, x2, y + height]
           document.link_annotation(rect, :Dest => link_state.first, :Border => [0, 0, 0])
         end
 
