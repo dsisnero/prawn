@@ -14,7 +14,7 @@ module Prawn
       def initialize(document, parser, line_width, options={})
         @document = document
         @parser = parser
-        @line_width = line_width.round
+        @line_width = line_width
         @kerning = options[:kerning]
         @tolerance = options.fetch(:tolerance, 1000)
 
