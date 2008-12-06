@@ -13,6 +13,10 @@ module Prawn
         0
       end
 
+      def stretchability
+        0
+      end
+
       def width(*args)
         0
       end
@@ -51,6 +55,10 @@ module Prawn
 
       def spaces
         @spaces ||= @text.scan(/ /).length
+      end
+
+      def stretchability
+        @stretchability ||= 2 * spaces * state.font.metrics.string_width(" ", state.font_size)
       end
 
       def height(ignore_discardable=false)

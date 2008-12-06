@@ -4,11 +4,20 @@ module Prawn
     class Line
       attr_reader :instructions
 
-      def initialize(instructions)
+      def initialize(instructions, data={})
+        @data = data
         @instructions = instructions
         @instructions.pop while @instructions.last && @instructions.last.discardable?
         @spaces = @instructions.inject(0) { |sum, instruction| sum + instruction.spaces }
         @spaces = [1, @spaces].max
+      end
+
+      def [](key)
+        @data[key]
+      end
+
+      def []=(key, value)
+        @data[key] = value
       end
 
       def width
@@ -45,6 +54,12 @@ module Prawn
         instructions.each { |instruction| instruction.draw(document, state, options) }
 
         LinkEndInstruction.pause(instructions.last.state, document, state, options)
+
+#new_x = document.bounds.width + 10
+#relative_x = new_x - state[:last_x]
+#state[:last_x] = new_x
+#state[:text].move(relative_x, 0)
+#state[:text].show(self[:badness].to_s)
       end
     end
 

@@ -14,18 +14,25 @@ module Prawn
       def initialize(document, parser, line_width, options={})
         @document = document
         @parser = parser
+        @wrap = options[:wrap]
         @line_width = line_width
         @kerning = options[:kerning]
-        @tolerance = options.fetch(:tolerance, 1000)
+        @tolerance = options.fetch(:tolerance, 10)
 
         @state = State.new(document,
           :font       => options[:font] || document.font,
           :font_size  => options[:size] || document.font.size,
           :font_style => options[:style] || :normal,
+          :color      => options[:color],
           :kerning    => options[:kerning])
 
         reduce!
-        layout!
+
+        case options[:wrap]
+        when nil, :naive then naive_layout!
+        when :optimal    then optimal_layout!
+        else raise ArgumentError, "unknown wrap type #{options[:wrap].inspect}"
+        end
       end
 
       private
@@ -36,19 +43,24 @@ module Prawn
 
         class Start
           attr_reader :parent, :at
-          attr_accessor :badness, :width
+          attr_accessor :badness, :width, :stretchability
 
           def initialize(at, badness, parent=nil)
             @at = at
             @badness = badness + (parent ? parent.badness : 0)
             @parent = parent
             @width = 0
+            @stretchability = 0
+          end
+
+          def reset!
+            @width = @stretchability = 0
           end
         end
 
         # Reduces the tokens from the parser into a series of instructions.
         def reduce!
-          @instructions = []
+          @instructions = [StrutInstruction.new(@state, 36)]
 
           @parser.each do |token|
             case token[:type]
@@ -102,10 +114,13 @@ module Prawn
           # again with a higher threshold.
           best = nil
 
+          line_tolerance = tolerance
           while current < lines.length
             # For each potential line-start seen so far, we look at the instructions
             # after it, adding new potential lines to the "lines" list.
-            lines[current].at.upto(@instructions.length-1) do |index|
+            index = lines[current].at
+            saved_length = lines.length
+            while index < @instructions.length
               instruction = @instructions[index]
 
               # if this instruction represents a character or character-sequence
@@ -128,7 +143,13 @@ module Prawn
                 # broken at this point. Basically, the more the a line has to
                 # stretch to fit the full line width, the higher the badness,
                 # and the less likely it is to be an optimal line break.
-                badness = (@line_width - lines[current].width) ** 2
+                if lines[current].stretchability == 0
+                  badness = 10_000
+                else
+                  short_space = @line_width - lines[current].width
+                  badness = 100 * (short_space / lines[current].stretchability) ** 3
+                  badness = 10_000 if badness > 10_000
+                end
 
                 # If the computed badness is within the acceptible tolerance,
                 # then we add a new line start to the queue, where the line
@@ -138,7 +159,7 @@ module Prawn
                 # score than the best one seen so far, don't bother adding
                 # a new break, since the break is definitely not one of the
                 # best.
-                if badness <= tolerance && (best.nil? || badness + lines[current].badness < best.badness)
+                if badness <= line_tolerance && (best.nil? || badness + lines[current].badness < best.badness)
                   lines << Start.new(index+1, badness, lines[current])
                 end
 
@@ -147,6 +168,7 @@ module Prawn
                 # width of any spaces, etc.
                 break if lines[current].width + instruction.width(:discardable) > @line_width
                 lines[current].width += instruction.width(:discardable)
+                lines[current].stretchability += instruction.stretchability
 
               elsif lines[current].width + instruction.width > @line_width
                 if index == lines[current].at
@@ -177,28 +199,84 @@ module Prawn
               if index == @instructions.length-1 && (best.nil? || lines[current].badness < best.badness)
                 best = lines[current]
               end
+
+              index += 1
             end
 
-            # Check out the next line in the queue
-            current += 1
+            # If no new lines were spawned from this line, then maybe the
+            # tolerance was too high. Let's double it and retry this line.
+            # This is an optimization to prevent entire paragraphs from
+            # having to be analyzed using high tolerances just because of
+            # one or two misbehaving lines.
+            if index < @instructions.length-1 && saved_length == lines.length
+              line_tolerance *= 2
+              if line_tolerance < 10_000
+                lines[current].reset!
+                next
+              end
+            end
+
+            line_tolerance = tolerance
+
+            # Find the next line in the queue that has a chance of beating the
+            # current best score.
+            loop do
+              current += 1
+              break if best.nil? || current >= lines.length
+              break if lines[current].badness < best.badness
+            end
           end
 
           # If best is not nil, return it as the tail of the best sequence of
           # line breaks we could find. Otherwise, increase the tolerance and
           # search again.
-          return best || find_breaks(tolerance+1000)
+          return best || find_breaks(tolerance*2)
         end
 
-        def layout!
+        def optimal_layout!
           break_point = find_breaks
 
           last_line = Line.new(@instructions[break_point.at..-1])
 
           @lines = [last_line]
           while break_point.parent
-            @lines.unshift Line.new(@instructions[break_point.parent.at...break_point.at])
+            line = Line.new(@instructions[break_point.parent.at...break_point.at],
+              :badness => break_point.badness)
+            @lines.unshift(line)
             break_point = break_point.parent
           end
+        end
+
+        def naive_layout!
+          @lines = []
+
+          width = 0
+          start = 0
+          break_at = nil
+          index = 0
+
+          while index < @instructions.length
+            instruction = @instructions[index]
+
+            if instruction.break?
+              width += instruction.width(:nondiscardable)
+              break_at = index if width <= @line_width
+              width += instruction.width(:discardable)
+            else
+              width += instruction.width
+            end
+
+            if width >= @line_width
+              @lines << Line.new(@instructions[start..(break_at || index)])
+              index = start = (break_at || index)+1
+              break_at = nil
+              width = 0
+            else
+              index += 1
+            end
+          end
+
+          @lines << Line.new(@instructions[start..-1]) if start < @instructions.length
         end
     end
   end
