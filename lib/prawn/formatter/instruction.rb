@@ -13,10 +13,6 @@ module Prawn
         0
       end
 
-      def stretchability
-        0
-      end
-
       def width(*args)
         0
       end
@@ -26,10 +22,6 @@ module Prawn
       end
 
       def break?
-        false
-      end
-
-      def stretchable?
         false
       end
 
@@ -57,10 +49,6 @@ module Prawn
         @spaces ||= @text.scan(/ /).length
       end
 
-      def stretchability
-        @stretchability ||= 2 * spaces * state.font.metrics.string_width(" ", state.font_size)
-      end
-
       def height(ignore_discardable=false)
         if ignore_discardable && discardable?
           0
@@ -77,11 +65,6 @@ module Prawn
       def discardable?
         return @discardable if defined?(@discardable)
         @discardable = (@text =~ /\s/)
-      end
-
-      def stretchable?
-        return @stretchable if defined?(@stretchable)
-        @stretchable = (@text =~ /\s/)
       end
 
       def width(type=:all)
