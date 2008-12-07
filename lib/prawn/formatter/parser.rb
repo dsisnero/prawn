@@ -44,7 +44,8 @@ module Prawn
           "lt"    => "<",
           "gt"    => ">",
           "amp"   => "&",
-          "mdash" => "—"
+          "mdash" => "—",
+          "ndash" => "–",
         }
 
         def parse_entity(scanner)

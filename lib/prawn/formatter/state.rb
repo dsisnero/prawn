@@ -8,6 +8,7 @@ module Prawn
       attr_reader :font_size
       attr_reader :font_style
       attr_reader :color
+      attr_reader :rise
 
       def initialize(document, options={})
         @document = document
@@ -19,6 +20,7 @@ module Prawn
           @font_style = @previous.font_style
           @color      = @previous.color
           @kerning    = @previous.kerning?
+          @rise       = @previous.rise
         end
 
         @font       = options[:font]       || @font
@@ -26,6 +28,7 @@ module Prawn
         @font_style = options[:font_style] || @font_style || :normal
         @color      = options[:color]      || @color      || "000000"
         @kerning    = options.fetch(:kerning, @kerning)
+        @rise       = options[:rise]       || @rise       || 0
       end
 
       def kerning?
@@ -45,9 +48,11 @@ module Prawn
         size  = options[:size] || font_size
         style = add_style(options[:style])
 
-        self.class.new(document, :previous => self,
+        options = options.merge(:previous => self,
           :font => document.find_font(font.family || font.name, :style => style),
           :font_size => size, :font_style => style)
+
+        self.class.new(document, options)
       end
 
       def bold!
@@ -64,6 +69,14 @@ module Prawn
 
       def shrink!
         change_font :size => font_size - 2
+      end
+
+      def sup!
+        change_font :size => font_size * 0.7, :rise => rise + font_size * 0.4
+      end
+
+      def sub!
+        change_font :size => font_size * 0.7, :rise => rise - font_size * 0.3
       end
 
       def change(options={})
@@ -84,6 +97,11 @@ module Prawn
         if cookies[:color] != color
           cookies[:color] = color
           text_object.fill_color(color)
+        end
+
+        if cookies[:rise] != rise
+          cookies[:rise] = rise
+          text_object.rise(rise || 0)
         end
       end
 

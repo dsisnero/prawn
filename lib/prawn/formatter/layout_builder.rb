@@ -71,6 +71,10 @@ module Prawn
                 @state = @state.grow!
               when :small then
                 @state = @state.shrink!
+              when :sup then
+                @state = @state.sup!
+              when :sub then
+                @state = @state.sub!
               when :font then
                 @state = @state.change(:font => token[:options][:font],
                   :color => token[:options][:color], :size => token[:options][:size])
