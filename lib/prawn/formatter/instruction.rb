@@ -6,7 +6,7 @@ module Prawn
 
       def initialize(state)
         @state = state
-        @height = state.font.height
+        state.font.size(state.font_size) { @height = state.font.height }
       end
 
       def spaces
