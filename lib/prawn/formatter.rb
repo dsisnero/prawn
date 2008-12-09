@@ -14,8 +14,8 @@ module Prawn
 
     def wrap(options={})
       parser = Parser.new(document, @lexer, options)
-      lines = LayoutBuilder.layout(document, parser, document.bounds.right, options)
-      wrap_lines(lines, options)
+      layout = LayoutBuilder.new(parser)
+      wrap_lines(layout.lines(document.bounds.right), options)
     end
 
     private
