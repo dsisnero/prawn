@@ -5,15 +5,15 @@ require 'prawn/formatter/state'
 module Prawn
   class Formatter
     class LayoutBuilder
-      def self.layout(document, parser, line_width, options={})
-        new(document, parser, line_width, options).lines
+      def self.layout(document, lexer, line_width, options={})
+        new(document, lexer, line_width, options).lines
       end
 
       attr_reader :lines
 
-      def initialize(document, parser, line_width, options={})
+      def initialize(document, lexer, line_width, options={})
         @document = document
-        @parser = parser
+        @lexer = lexer
         @wrap = options[:wrap]
         @line_width = line_width
         @kerning = options[:kerning]
@@ -32,32 +32,11 @@ module Prawn
 
       private
 
-        def metrics
-          @state.font.metrics
-        end
-
-        class Start
-          attr_reader :parent, :at
-          attr_accessor :badness, :width, :stretchability
-
-          def initialize(at, badness, parent=nil)
-            @at = at
-            @badness = badness + (parent ? parent.badness : 0)
-            @parent = parent
-            @width = 0
-            @stretchability = 0
-          end
-
-          def reset!
-            @width = @stretchability = 0
-          end
-        end
-
-        # Reduces the tokens from the parser into a series of instructions.
+        # Reduces the tokens from the lexer into a series of instructions.
         def reduce!
           @instructions = []
 
-          @parser.each do |token|
+          @lexer.each do |token|
             case token[:type]
             when :text
               @instructions.concat(token[:text].map { |lex| TextInstruction.new(@state, lex) })
@@ -97,7 +76,7 @@ module Prawn
               when :p then
                 @instructions.push ParagraphEndInstruction.new(@state)
               end
-              @state = @state.previous
+              @state = @state.prvious
             else
               raise ArgumentError, "[BUG] unknown token type #{token[:type].inspect} (#{token.inspect})"
             end
