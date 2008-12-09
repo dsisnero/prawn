@@ -1,6 +1,16 @@
 # encoding: utf-8
 
-require File.join(File.expand_path(File.dirname(__FILE__)), "spec_helper")  
+require File.join(File.expand_path(File.dirname(__FILE__)), "spec_helper") 
+
+describe "The cursor" do
+  it "should equal pdf.y - bounds.absolute_bottom" do
+    pdf = Prawn::Document.new
+    pdf.cursor.should == pdf.bounds.top
+    
+    pdf.y = 300
+    pdf.cursor.should == pdf.y - pdf.bounds.absolute_bottom 
+  end
+end 
                                
 describe "When creating multi-page documents" do 
  
@@ -38,7 +48,23 @@ describe "When beginning each new page" do
     pdf.render
     
     call_count.should == 3
-  end                   
+  end
+  describe "Background template feature" do
+    before(:each) do
+      @filename = "#{Prawn::BASEDIR}/data/images/pigs.jpg"
+      @pdf = Prawn::Document.new(:background => @filename)
+    end
+    it "should place a background image if it is in options block" do
+      output = @pdf.render
+      images = PDF::Inspector::XObject.analyze(output)
+      # there should be 2 images in the page resources
+      images.page_xobjects.first.size.should == 1
+    end
+    it "should place a background image if it is in options block" do
+      @pdf.instance_variable_defined?(:@background).should == true
+      @pdf.instance_variable_get(:@background).should == @filename
+    end
+  end
 
 end
 
