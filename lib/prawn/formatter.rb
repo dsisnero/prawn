@@ -15,22 +15,27 @@ module Prawn
     def wrap(options={})
       parser = Parser.new(document, @lexer, options)
       layout = LayoutBuilder.new(parser)
-      wrap_lines(layout.lines(document.bounds.right), options)
+
+      until layout.done?
+        lines = layout.fill(document.bounds.width, document.bounds.height)
+        draw_lines(document.bounds.absolute_left, document.bounds.absolute_top, document.bounds.right, lines, options)
+        document.start_new_page unless layout.done?
+      end
     end
 
     private
 
-      def wrap_lines(lines, options={})
+      def draw_lines(x, y, width, lines, options={})
         options[:align] ||= :left
-        state = { :cookies => {}, :last_x => 0, :y => document.y }
+        state = { :cookies => {}, :width => width, :last_x => 0, :y => y }
 
         document.text_object do |text|
-          text.move(document.bounds.absolute_left, state[:y])
+          text.move(x, state[:y])
           state[:text] = text
           lines.each { |line| line.draw_on(document, state, options) }
         end
 
-        document.y = state[:y]
+        return state[:y]
       end
   end
 end

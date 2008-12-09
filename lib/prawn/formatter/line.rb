@@ -33,12 +33,12 @@ module Prawn
         when :left
           state[:x] = 0
         when :center
-          state[:x] = (document.bounds.width - width) / 2.0
+          state[:x] = (state[:width] - width) / 2.0
         when :right
-          state[:x] = document.bounds.width - width
+          state[:x] = state[:width] - width
         when :justify
           state[:x] = 0
-          state[:padding] = hard_break? ? 0 : (document.bounds.width - width) / @spaces
+          state[:padding] = hard_break? ? 0 : (state[:width] - width) / @spaces
           state[:text].word_space(state[:padding])
         end
 
@@ -55,7 +55,7 @@ module Prawn
 
         LinkEndInstruction.pause(instructions.last.state, document, state, options)
 
-#new_x = document.bounds.width + 10
+#new_x = state[:width] + 10
 #relative_x = new_x - state[:last_x]
 #state[:last_x] = new_x
 #state[:text].move(relative_x, 0)

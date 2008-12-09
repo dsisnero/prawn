@@ -9,6 +9,27 @@ module Prawn
         @parser = parser
       end
 
+      def done?
+        @parser.eos?
+      end
+
+      def fill(width, height)
+        lines = []
+        total_height = 0
+
+        while (line = next_line(width))
+          total_height += line.height
+          if total_height > height
+            @parser.push(line.instructions.pop) while line.instructions.any?
+            break
+          end
+          lines.push(line)
+          break if total_height + line.height > height
+        end
+
+        return lines
+      end
+
       def next_line(line_width)
         line = []
         width = 0
