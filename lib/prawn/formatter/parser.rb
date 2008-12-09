@@ -74,7 +74,7 @@ module Prawn
           tag = tag.downcase.to_sym
           options = {}
           scanner.skip(/\s*/)
-          while !scanner.eos? && scanner.peek(1) != ">"
+          while !scanner.eos? && scanner.peek(1) =~ /\w/
             name = scanner.scan(/\w+/) or raise InvalidFormat, "expected option name at #{scanner.pos} -> #{scanner.rest.inspect}"
             scanner.scan(/\s*=\s*/) or raise InvalidFormat, "expected assigment after option name at #{scanner.pos} -> #{scanner.rest.inspect}"
             if (delim = scanner.scan(/['"]/))
@@ -87,15 +87,18 @@ module Prawn
             scanner.skip(/\s*/)
           end
 
+          self_close = !closed && scanner.scan(%r(/))
           scanner.scan(/>/) or raise InvalidFormat, "unclosed tag #{tag.inspect} at #{scanner.pos} -> #{scanner.rest.inspect}"
 
-          if closed
+          if !closed
+            stack.push(tag)
+            @tokens << { :type => :open, :tag => tag, :options => options }
+          end
+
+          if self_close || closed
             raise InvalidFormat, "improperly nested tags (attempt to close #{stack.last.inspect} with #{tag.inspect}) at #{scanner.pos} -> #{scanner.rest.inspect}" if stack.empty? || stack.last != tag
             stack.pop
             @tokens << { :type => :close, :tag => tag }
-          else
-            stack.push(tag)
-            @tokens << { :type => :open, :tag => tag, :options => options }
           end
         end
     end

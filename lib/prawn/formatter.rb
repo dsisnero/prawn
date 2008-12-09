@@ -24,14 +24,6 @@ module Prawn
       options[:align] ||= :left
       state = { :cookies => {}, :last_x => 0, :y => document.y }
 
-      # Add a special strut instruction here to avoid justifying the last
-      # line of a paragraph.
-      if options[:align] == :justify
-        instruction_state = lines.last.instructions.last.state
-        width = document.bounds.width - lines.last.width
-        lines.last.instructions << StrutInstruction.new(instruction_state, width)
-      end
-
       document.text_object do |text|
         text.move(document.bounds.absolute_left, state[:y])
         state[:text] = text

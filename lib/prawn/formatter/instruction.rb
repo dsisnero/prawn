@@ -25,6 +25,10 @@ module Prawn
         false
       end
 
+      def force_break?
+        false
+      end
+
       def discardable?
         false
       end
@@ -120,6 +124,51 @@ module Prawn
         draw_state[:x] += width
         draw_state[:text].move(draw_state[:x] - draw_state[:last_x], 0)
         draw_state[:last_x] = draw_state[:x]
+      end
+    end
+
+    class LineBreakInstruction < Instruction
+      def force_break?
+        true
+      end
+
+      def break?
+        true
+      end
+
+      def discardable?
+        false
+      end
+
+      def draw(document, draw_state, options={})
+        flush(document, draw_state, options)
+      end
+    end
+
+    class ParagraphStartInstruction < Instruction
+      def width
+        36
+      end
+
+      def draw(document, draw_state, options={})
+        flush(document, draw_state, options)
+        draw_state[:x] += width
+        draw_state[:text].move(draw_state[:x] - draw_state[:last_x], 0)
+        draw_state[:last_x] = draw_state[:x]
+      end
+    end
+
+    class ParagraphEndInstruction < Instruction
+      def force_break?
+        true
+      end
+
+      def break?
+        true
+      end
+
+      def draw(document, draw_state, options={})
+        flush(document, draw_state, options)
       end
     end
 

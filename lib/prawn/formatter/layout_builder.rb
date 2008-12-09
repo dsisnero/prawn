@@ -55,7 +55,7 @@ module Prawn
 
         # Reduces the tokens from the parser into a series of instructions.
         def reduce!
-          @instructions = [StrutInstruction.new(@state, 36)]
+          @instructions = []
 
           @parser.each do |token|
             case token[:type]
@@ -78,6 +78,12 @@ module Prawn
               when :font then
                 @state = @state.change(:font => token[:options][:font],
                   :color => token[:options][:color], :size => token[:options][:size])
+              when :br then
+                @instructions.push LineBreakInstruction.new(@state)
+                @state = @state.change
+              when :p then
+                @instructions.push ParagraphStartInstruction.new(@state)
+                @state = @state.change
               when :a then
                 @instructions.push LinkStartInstruction.new(@state, token[:options][:name], token[:options][:href])
                 @state = @state.change(:color => "0000ff")
@@ -85,7 +91,12 @@ module Prawn
                 raise ArgumentError, "unknown tag type #{token[:tag]}"
               end
             when :close
-              @instructions.push LinkEndInstruction.new(@state) if token[:tag] == :a
+              case token[:tag]
+              when :a then
+                @instructions.push LinkEndInstruction.new(@state)
+              when :p then
+                @instructions.push ParagraphEndInstruction.new(@state)
+              end
               @state = @state.previous
             else
               raise ArgumentError, "[BUG] unknown token type #{token[:type].inspect} (#{token.inspect})"
@@ -112,8 +123,10 @@ module Prawn
               width += instruction.width
             end
 
-            if width >= @line_width
-              @lines << Line.new(@instructions[start..(break_at || index)])
+            if instruction.force_break? || width >= @line_width
+              hard_break = instruction.force_break? ||
+                ((break_at || index) + 1 >= @instructions.length)
+              @lines << Line.new(@instructions[start..(break_at || index)], hard_break)
               index = start = (break_at || index)+1
               break_at = nil
               width = 0
@@ -122,7 +135,7 @@ module Prawn
             end
           end
 
-          @lines << Line.new(@instructions[start..-1]) if start < @instructions.length
+          @lines << Line.new(@instructions[start..-1], true) if start < @instructions.length
         end
     end
   end

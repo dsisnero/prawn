@@ -4,20 +4,18 @@ module Prawn
     class Line
       attr_reader :instructions
 
-      def initialize(instructions, data={})
-        @data = data
+      def initialize(instructions, hard_break)
         @instructions = instructions
         @instructions.pop while @instructions.last && @instructions.last.discardable?
+
+        @hard_break = hard_break
+
         @spaces = @instructions.inject(0) { |sum, instruction| sum + instruction.spaces }
         @spaces = [1, @spaces].max
       end
 
-      def [](key)
-        @data[key]
-      end
-
-      def []=(key, value)
-        @data[key] = value
+      def hard_break?
+        @hard_break
       end
 
       def width
@@ -29,6 +27,8 @@ module Prawn
       end
 
       def draw_on(document, state, options={})
+        return if instructions.empty?
+
         case(options[:align]) 
         when :left
           state[:x] = 0
@@ -38,7 +38,7 @@ module Prawn
           state[:x] = document.bounds.width - width
         when :justify
           state[:x] = 0
-          state[:padding] = (document.bounds.width - width) / @spaces
+          state[:padding] = hard_break? ? 0 : (document.bounds.width - width) / @spaces
           state[:text].word_space(state[:padding])
         end
 
