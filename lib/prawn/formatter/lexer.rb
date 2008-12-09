@@ -2,7 +2,7 @@ require 'strscan'
 
 module Prawn
   class Formatter
-    class Parser
+    class Lexer
       class InvalidFormat < RuntimeError; end
 
       attr_reader :tokens

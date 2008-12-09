@@ -1,14 +1,14 @@
-require 'prawn/formatter/parser'
+require 'prawn/formatter/lexer'
 require 'prawn/formatter/layout_builder'
 
 module Prawn
   class Formatter
     attr_reader :document
-    attr_reader :parser
+    attr_reader :lexer
 
     def initialize(document, text)
       @document   = document
-      @parser     = Parser.new(text)
+      @lexer      = Lexer.new(text)
     end
 
     def wrap(options={})
@@ -17,7 +17,7 @@ module Prawn
     end
 
     def layout(line_width, options={})
-      LayoutBuilder.layout(document, parser, line_width, options)
+      LayoutBuilder.layout(document, lexer, line_width, options)
     end
 
     def wrap_lines(lines, options={})
