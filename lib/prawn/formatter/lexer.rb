@@ -13,7 +13,7 @@ module Prawn
         @state = :start
       end
 
-      def next_token
+      def next
         if @scanner.eos?
           if @stack.any?
             raise InvalidFormat, "string terminated with unclosed tags: #{@stack.join(', ')}"
@@ -57,8 +57,8 @@ module Prawn
           "lt"    => "<",
           "gt"    => ">",
           "amp"   => "&",
-          "mdash" => "—",
-          "ndash" => "–",
+          "mdash" => "\xE2\x80\x94",
+          "ndash" => "\xE2\x80\x93"
         }
 
         def scan_entity
@@ -69,14 +69,14 @@ module Prawn
             when /#(\d+)/ then [$1.to_i].pack("U*")
             when /#x([0-9a-f]+)/ then [$1.to_i(16)].pack("U*")
             else
-              result = ENTITY_MAP[entity]
+              result = ENTITY_MAP[entity].dup
               if result.nil?
                 raise InvalidFormat, "unrecognized entity #{entity.inspect} at #{@scanner.pos} -> #{@scanner.rest.inspect}"
               end
               result
             end
 
-          { :type => :text, :text => text }
+          { :type => :text, :text => [text] }
         end
 
         def scan_open_tag
