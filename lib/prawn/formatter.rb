@@ -16,10 +16,24 @@ module Prawn
       parser = Parser.new(document, @lexer, options)
       layout = LayoutBuilder.new(parser)
 
+      columns  = options[:columns] || 1
+      gap      = options[:gap]     || 18
+      width    = document.bounds.width.to_f / columns
+      column   = 0
+
       until layout.done?
-        lines = layout.fill(document.bounds.width, document.bounds.height)
-        draw_lines(document.bounds.absolute_left, document.bounds.absolute_top, document.bounds.right, lines, options)
-        document.start_new_page unless layout.done?
+        lines = layout.fill(width - gap, document.bounds.height)
+        draw_lines(document.bounds.absolute_left + column * width,
+          document.bounds.absolute_top, width - gap,
+          lines, options)
+
+        unless layout.done?
+          column += 1
+          if column >= columns
+            document.start_new_page
+            column = 0
+          end
+        end
       end
     end
 
