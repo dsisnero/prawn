@@ -7,6 +7,7 @@
 # This is free software. Please see the LICENSE and COPYING files for details.
 require "zlib"
 require "prawn/document/text/box"
+require "prawn/formatter/layout_builder"
 
 module Prawn
   class Document
@@ -97,7 +98,47 @@ module Prawn
 
         font(original_font) 
       end 
-                          
+
+      def draw_lines(x, y, width, lines, options={})
+        options[:align] ||= :left
+
+        state = (options[:state] || {}).merge(:width => width, :last_x => 0, :y => y)
+        state[:cookies] ||= {}
+
+        text_object do |text|
+          text.rotate(x, state[:y], options[:rotate] || 0)
+          state[:text] = text
+          lines.each { |line| line.draw_on(self, state, options) }
+        end
+
+        state.delete(:text)
+        return state
+      end
+
+      def paginate(text, options={})
+        layout  = Formatter::LayoutBuilder.new(self, text, options)
+
+        columns = options[:columns] || 1
+        gap     = options[:gap]     || 18
+        width   = bounds.width.to_f / columns
+        column  = 0
+
+        until layout.done?
+          lines = layout.fill(width - gap, bounds.height)
+          draw_lines(bounds.absolute_left + column * width,
+            bounds.absolute_top, width - gap,
+            lines, options)
+
+          unless layout.done?
+            column += 1
+            if column >= columns
+              start_new_page
+              column = 0
+            end
+          end
+        end
+      end
+
       # A hash of configuration options, to be used globally by text().
       # 
       #   pdf.text_options.update(:size => 16, :align => :right)   
