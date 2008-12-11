@@ -6,15 +6,18 @@ require 'prawn/formatter/state'
 module Prawn
   class Formatter
     class LayoutBuilder
+      attr_reader :document
+
       def initialize(document, text, options={})
-        @parser = Parser.new(document, text, options)
+        @document = document
+        @parser = Parser.new(@document, text, options)
       end
 
       def done?
         @parser.eos?
       end
 
-      def fill(width, height=nil, &block)
+      def word_wrap(width, height=nil, &block)
         if height && block
           raise ArgumentError, "cannot specify both height and a block"
         elsif height
@@ -37,6 +40,11 @@ module Prawn
         end
 
         return lines
+      end
+
+      def fill(x, y, width, options={}, &block)
+        lines = word_wrap(width, options[:height], &block)
+        document.draw_lines(x, y, width, lines, options)
       end
 
       def next(line_width)
@@ -69,16 +77,6 @@ module Prawn
 
       def unget(line)
         @parser.push(line.instructions.pop) while line.instructions.any?
-      end
-
-      def lines(line_width)
-        lines = []
-
-        while (line = self.next(line_width))
-          lines << line
-        end
-
-        return lines
       end
     end
   end

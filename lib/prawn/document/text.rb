@@ -115,21 +115,27 @@ module Prawn
         return state
       end
 
-      def paginate(text, options={})
-        layout  = Formatter::LayoutBuilder.new(self, text, options)
+      def layout(text, options={})
+        helper = Formatter::LayoutBuilder.new(self, text, options)
+        yield helper if block_given?
+        return helper
+      end
 
-        columns = options[:columns] || 1
+      def paginate(text, options={})
+        helper  = layout(text, options)
+
+        columns = (options[:columns] || 1).to_i
         gap     = options[:gap]     || 18
         width   = bounds.width.to_f / columns
         column  = 0
 
-        until layout.done?
-          lines = layout.fill(width - gap, bounds.height)
-          draw_lines(bounds.absolute_left + column * width,
-            bounds.absolute_top, width - gap,
-            lines, options)
+        until helper.done?
+          x = bounds.absolute_left + column * width
+          y = bounds.absolute_top
 
-          unless layout.done?
+          helper.fill(x, y, width - gap, options.merge(:height => bounds.height))
+
+          unless helper.done?
             column += 1
             if column >= columns
               start_new_page
