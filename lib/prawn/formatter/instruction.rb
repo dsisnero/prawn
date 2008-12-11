@@ -147,7 +147,7 @@ module Prawn
 
     class ParagraphStartInstruction < Instruction
       def width
-        36
+        state.font_size * 3
       end
 
       def draw(document, draw_state, options={})
