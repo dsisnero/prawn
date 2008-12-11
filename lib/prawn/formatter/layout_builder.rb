@@ -14,18 +14,26 @@ module Prawn
         @parser.eos?
       end
 
-      def fill(width, height)
+      def fill(width, height=nil, &block)
+        if height && block
+          raise ArgumentError, "cannot specify both height and a block"
+        elsif height
+          block = Proc.new { |h| h > height }
+        elsif block.nil?
+          block = Proc.new { |h| false }
+        end
+
         lines = []
         total_height = 0
 
         while (line = self.next(width))
           total_height += line.height
-          if total_height > height
+          if block[total_height]
             unget(line)
             break
           end
           lines.push(line)
-          break if total_height + line.height > height
+          break if block[total_height + line.height]
         end
 
         return lines
