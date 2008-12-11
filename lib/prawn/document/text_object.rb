@@ -79,6 +79,13 @@ module Prawn
           self
         end
 
+        def rotate(x, y, theta)
+          radians = theta * Math::PI / 180
+          cos, sin = Math.cos(radians), Math.sin(radians)
+          arr = [cos, sin, -sin, cos, x, y]
+          add_content "%.3f %.3f %.3f %.3f %.3f %.3f Tm" % arr
+        end
+
         def to_s
           @content
         end

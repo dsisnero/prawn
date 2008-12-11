@@ -45,7 +45,7 @@ module Prawn
       state[:cookies] ||= {}
 
       document.text_object do |text|
-        text.move(x, state[:y])
+        text.rotate(x, state[:y], options[:rotate] || 0)
         state[:text] = text
         lines.each { |line| line.draw_on(document, state, options) }
       end
