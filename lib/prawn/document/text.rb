@@ -119,7 +119,7 @@ module Prawn
       
       def process_text_options(options)
         Prawn.verify_options [:style, :kerning, :size, :at, :wrap, 
-                              :spacing, :align ], options                               
+                              :spacing, :align, :rotate ], options                               
         
         if options[:style]  
           raise "Bad font family" unless font.family
