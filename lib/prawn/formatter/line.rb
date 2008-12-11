@@ -7,11 +7,12 @@ module Prawn
 
       def initialize(instructions, hard_break)
         @instructions = instructions
-        @instructions.pop while @instructions.last && @instructions.last.discardable?
+        @length = instructions.length
+        @length -= 1 while @length > 0 && @instructions[@length-1].discardable?
 
         @hard_break = hard_break
 
-        @spaces = @instructions.inject(0) { |sum, instruction| sum + instruction.spaces }
+        @spaces = @instructions[0,@length].inject(0) { |sum, instruction| sum + instruction.spaces }
         @spaces = [1, @spaces].max
 
         @offset = 0
@@ -22,7 +23,7 @@ module Prawn
       end
 
       def width
-        instructions.inject(0) { |sum, instruction| sum + instruction.width }
+        instructions[0,@length].inject(0) { |sum, instruction| sum + instruction.width }
       end
 
       def height(include_blank=false)
@@ -30,7 +31,7 @@ module Prawn
       end
 
       def draw_on(document, state, options={})
-        return if instructions.empty?
+        return if @length.zero?
 
         case(options[:align]) 
         when :left
@@ -54,7 +55,7 @@ module Prawn
         LinkStartInstruction.resume(document, state)
         state[:accumulator] = nil
 
-        instructions.each { |instruction| instruction.draw(document, state, options) }
+        instructions[0,@length].each { |instruction| instruction.draw(document, state, options) }
 
         LinkEndInstruction.pause(instructions.last.state, document, state, options)
 
