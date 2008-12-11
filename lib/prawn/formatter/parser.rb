@@ -1,13 +1,14 @@
 require 'prawn/formatter/instruction'
+require 'prawn/formatter/lexer'
 require 'prawn/formatter/line'
 require 'prawn/formatter/state'
 
 module Prawn
   class Formatter
     class Parser
-      def initialize(document, lexer, options={})
+      def initialize(document, text, options={})
         @document = document
-        @lexer = lexer
+        @lexer = Lexer.new(text)
         @kerning = options[:kerning]
 
         @state = State.new(document,
@@ -36,10 +37,14 @@ module Prawn
         @stack.push(instruction)
       end
 
-      def eos?
+      def peek
         save = self.next
         push(save) if save
-        return save.nil?
+        return save
+      end
+
+      def eos?
+        peek.nil?
       end
 
       private

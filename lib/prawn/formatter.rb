@@ -5,16 +5,17 @@ require 'prawn/formatter/layout_builder'
 module Prawn
   class Formatter
     attr_reader :document
-    attr_reader :lexer
+    attr_reader :layout
+    attr_reader :options
 
-    def initialize(document, text)
-      @document   = document
-      @lexer      = Lexer.new(text)
+    def initialize(document, text, options={})
+      @document = document
+      @options  = options
+      @layout   = LayoutBuilder.new(document, text, options)
     end
 
-    def wrap(options={})
-      parser = Parser.new(document, @lexer, options)
-      layout = LayoutBuilder.new(parser)
+    def wrap(wrap_options={})
+      options  = @options.merge(wrap_options)
 
       columns  = options[:columns] || 1
       gap      = options[:gap]     || 18
@@ -37,19 +38,21 @@ module Prawn
       end
     end
 
-    private
+    def draw_lines(x, y, width, lines, options={})
+      options[:align] ||= :left
 
-      def draw_lines(x, y, width, lines, options={})
-        options[:align] ||= :left
-        state = { :cookies => {}, :width => width, :last_x => 0, :y => y }
+      state = (options[:state] || {}).merge(:width => width, :last_x => 0, :y => y)
+      state[:cookies] ||= {}
 
-        document.text_object do |text|
-          text.move(x, state[:y])
-          state[:text] = text
-          lines.each { |line| line.draw_on(document, state, options) }
-        end
-
-        return state[:y]
+      document.text_object do |text|
+        text.move(x, state[:y])
+        state[:text] = text
+        lines.each { |line| line.draw_on(document, state, options) }
       end
+
+      state.delete(:text)
+      return state
+    end
+
   end
 end

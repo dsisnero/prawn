@@ -3,6 +3,7 @@ module Prawn
 
     class Line
       attr_reader :instructions
+      attr_accessor :offset
 
       def initialize(instructions, hard_break)
         @instructions = instructions
@@ -12,6 +13,8 @@ module Prawn
 
         @spaces = @instructions.inject(0) { |sum, instruction| sum + instruction.spaces }
         @spaces = [1, @spaces].max
+
+        @offset = 0
       end
 
       def hard_break?

@@ -1,12 +1,13 @@
 require 'prawn/formatter/instruction'
 require 'prawn/formatter/line'
+require 'prawn/formatter/parser'
 require 'prawn/formatter/state'
 
 module Prawn
   class Formatter
     class LayoutBuilder
-      def initialize(parser)
-        @parser = parser
+      def initialize(document, text, options={})
+        @parser = Parser.new(document, text, options)
       end
 
       def done?
@@ -17,10 +18,10 @@ module Prawn
         lines = []
         total_height = 0
 
-        while (line = next_line(width))
+        while (line = self.next(width))
           total_height += line.height
           if total_height > height
-            @parser.push(line.instructions.pop) while line.instructions.any?
+            unget(line)
             break
           end
           lines.push(line)
@@ -30,7 +31,7 @@ module Prawn
         return lines
       end
 
-      def next_line(line_width)
+      def next(line_width)
         line = []
         width = 0
         break_at = nil
@@ -58,10 +59,14 @@ module Prawn
         Line.new(line, true) if line.any?
       end
 
+      def unget(line)
+        @parser.push(line.instructions.pop) while line.instructions.any?
+      end
+
       def lines(line_width)
         lines = []
 
-        while (line = next_line(line_width))
+        while (line = self.next(line_width))
           lines << line
         end
 
