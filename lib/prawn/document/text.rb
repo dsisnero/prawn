@@ -100,18 +100,29 @@ module Prawn
       end 
 
       def draw_lines(x, y, width, lines, options={})
+        real_x = x + bounds.absolute_left
+        real_y = y + bounds.absolute_bottom
+
+        state = options[:state] || {}
+        return options[:state] if lines.empty?
+
         options[:align] ||= :left
 
-        state = (options[:state] || {}).merge(:width => width, :last_x => 0, :y => y)
+        state = state.merge(:width => width,
+          :real_x => real_x, :x => 0, :last_x => 0,
+          :real_y => real_y, :y => 0, :last_y => 0)
+
         state[:cookies] ||= {}
 
         text_object do |text|
-          text.rotate(x, state[:y], options[:rotate] || 0)
+          text.rotate(real_x, real_y, options[:rotate] || 0)
           state[:text] = text
           lines.each { |line| line.draw_on(self, state, options) }
         end
 
+        state[:y] += y
         state.delete(:text)
+
         return state
       end
 
@@ -130,8 +141,8 @@ module Prawn
         column  = 0
 
         until helper.done?
-          x = bounds.absolute_left + column * width
-          y = bounds.absolute_top
+          x = bounds.left + column * width
+          y = bounds.top
 
           helper.fill(x, y, width - gap, options.merge(:height => bounds.height))
 

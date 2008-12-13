@@ -311,7 +311,7 @@ module Prawn
         end      
         
         def line_gap
-          Integer(@ttf.hhea.line_gap * scale_factor)   
+          Integer(@ttf.hhea.line_gap * scale_factor)
         end
 
         def basename

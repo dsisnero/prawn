@@ -2,11 +2,14 @@ module Prawn
   class Formatter
 
     class Instruction
-      attr_reader :state
+      attr_reader :state, :ascent
 
       def initialize(state)
         @state = state
-        state.font.size(state.font_size) { @height = state.font.height }
+        state.font.size(state.font_size) do
+          @height = state.font.height
+          @ascent = state.font.ascender
+        end
       end
 
       def spaces
@@ -46,7 +49,8 @@ module Prawn
 
       def initialize(state, text)
         super(state)
-        @text = state.font.normalize_encoding(text)
+        @text = text
+        @normalized = state.font.normalize_encoding(text)
       end
 
       def spaces
@@ -195,8 +199,8 @@ module Prawn
       private
 
         def draw_destination(document, draw_state)
-          x = document.bounds.absolute_left + draw_state[:x]
-          y = draw_state[:y] + height
+          x = draw_state[:real_x]
+          y = draw_state[:real_y] + draw_state[:y] + height
 
           label, destination = case @name
             when nil then return
@@ -242,11 +246,11 @@ module Prawn
         link_state = (draw_state[:link_stack] || []).pop
 
         if link_state
-          x1 = document.bounds.absolute_left + link_state.last
-          x2 = document.bounds.absolute_left + draw_state[:x]
-          y = draw_state[:y]
+          x1 = draw_state[:real_x] + link_state.last
+          x2 = draw_state[:real_x] + draw_state[:x]
+          y = draw_state[:real_y] + draw_state[:y]
 
-          rect = [x1, y + state.font.descender, x2, y + height]
+          rect = [x1, y + state.font.descender - state.font.line_gap, x2, y + height]
           document.link_annotation(rect, :Dest => link_state.first, :Border => [0, 0, 0])
         end
 
