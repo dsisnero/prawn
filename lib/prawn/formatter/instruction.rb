@@ -50,7 +50,7 @@ module Prawn
       def initialize(state, text)
         super(state)
         @text = text
-        @normalized = state.font.normalize_encoding(text)
+        state.font.normalize_encoding(@text)
       end
 
       def spaces
