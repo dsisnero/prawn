@@ -117,8 +117,7 @@ module Prawn
 
         def scan_end_tag
           @state = :start
-          @stack.pop
-          { :type => :close, :tag => tag }
+          { :type => :close, :tag => @stack.pop }
         end
     end
   end
