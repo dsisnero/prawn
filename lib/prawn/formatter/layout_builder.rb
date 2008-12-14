@@ -11,7 +11,8 @@ module Prawn
       def initialize(document, text, options={})
         @document = document
         @options  = options
-        @parser = Parser.new(@document, text, options)
+        @parser   = Parser.new(@document, text, options)
+        @state    = {}
       end
 
       def done?
@@ -45,7 +46,9 @@ module Prawn
 
       def fill(x, y, width, fill_options={}, &block)
         lines = word_wrap(width, fill_options[:height], &block)
-        document.draw_lines(x, y, width, lines, options.merge(fill_options))
+        draw_options = options.merge(fill_options).merge(:state => @state)
+        @state = document.draw_lines(x, y, width, lines, draw_options)
+        return @state[:y]
       end
 
       def next(line_width)
