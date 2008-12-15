@@ -112,8 +112,10 @@ module Prawn
         options[:align] ||= :left
 
         state = state.merge(:width => width,
-          :real_x => real_x, :x => 0, :last_x => 0,
-          :real_y => real_y, :y => 0, :last_y => 0)
+          :x => x, :y => y,
+          :real_x => real_x, :real_y => y,
+          :dx => 0, :dy => 0,
+          :last_x => 0, :last_y => 0)
 
         state[:cookies] ||= {}
 
@@ -123,7 +125,6 @@ module Prawn
           lines.each { |line| line.draw_on(self, state, options) }
         end
 
-        state[:y] += y
         state.delete(:text)
 
         return state

@@ -107,27 +107,11 @@ module Prawn
         text = state.font.metrics.convert_text(@text, options)
 
         draw_state[:text].show(text)
-        draw_state[:x] += width
+        draw_state[:dx] += width
 
         if options[:align] == :justify
-          draw_state[:x] += draw_state[:padding] * spaces
+          draw_state[:dx] += draw_state[:padding] * spaces
         end
-      end
-    end
-
-    class StrutInstruction < Instruction
-      attr_reader :width
-
-      def initialize(state, width)
-        super(state)
-        @width = width
-      end
-
-      def draw(document, draw_state, options={})
-        flush(document, draw_state, options)
-        draw_state[:x] += width
-        draw_state[:text].move(draw_state[:x] - draw_state[:last_x], 0)
-        draw_state[:last_x] = draw_state[:x]
       end
     end
 
@@ -156,9 +140,9 @@ module Prawn
 
       def draw(document, draw_state, options={})
         flush(document, draw_state, options)
-        draw_state[:x] += width
-        draw_state[:text].move(draw_state[:x] - draw_state[:last_x], 0)
-        draw_state[:last_x] = draw_state[:x]
+        draw_state[:dx] += width
+        draw_state[:text].move(draw_state[:dx] - draw_state[:last_x], 0)
+        draw_state[:last_x] = draw_state[:dx]
       end
     end
 
@@ -179,7 +163,7 @@ module Prawn
     class LinkStartInstruction < Instruction
       def self.resume(document, draw_state)
         if draw_state[:link_stack] && draw_state[:link_stack].any?
-          draw_state[:link_stack].last[1] = draw_state[:x]
+          draw_state[:link_stack].last[1] = draw_state[:dx]
         end
       end
 
@@ -200,7 +184,7 @@ module Prawn
 
         def draw_destination(document, draw_state)
           x = draw_state[:real_x]
-          y = draw_state[:real_y] + draw_state[:y] + height
+          y = draw_state[:real_y] + draw_state[:dy] + height
 
           label, destination = case @name
             when nil then return
@@ -227,7 +211,7 @@ module Prawn
         def draw_link(document, draw_state)
           draw_state[:link_stack] ||= []
           if @target
-            draw_state[:link_stack] << [@target, draw_state[:x]]
+            draw_state[:link_stack] << [@target, draw_state[:dx]]
           else
             draw_state[:link_stack] << nil
           end
@@ -247,10 +231,10 @@ module Prawn
 
         if link_state
           x1 = draw_state[:real_x] + link_state.last
-          x2 = draw_state[:real_x] + draw_state[:x]
-          y = draw_state[:real_y] + draw_state[:y]
+          x2 = draw_state[:real_x] + draw_state[:dx]
+          y = draw_state[:real_y] + draw_state[:dy]
 
-          rect = [x1, y + state.font.descender - state.font.line_gap, x2, y + height]
+          rect = [x1, y + state.font.descender, x2, y + ascent]
           document.link_annotation(rect, :Dest => link_state.first, :Border => [0, 0, 0])
         end
 
@@ -258,5 +242,34 @@ module Prawn
       end
     end
 
+    class UnderlineStartInstruction < Instruction
+      def draw(document, draw_state, options={})
+        flush(document, draw_state, options)
+        draw_state[:underline_progress] ||= 0
+        draw_state[:underline_progress] += 1
+        draw_state[:underline_start] ||= draw_state[:dx]
+      end
+    end
+
+    class UnderlineEndInstruction < Instruction
+      def draw(document, draw_state, options={})
+        flush(document, draw_state, options)
+
+        draw_state[:underline_progress] -= 1
+        if draw_state[:underline_progress] < 1
+          # the graphics primitives assume the coordinates are given in bounding box space
+          x1 = draw_state[:x] + draw_state[:underline_start]
+          x2 = draw_state[:y] + draw_state[:dx]
+          y = draw_state[:y] + draw_state[:dy] - 2
+
+          document.stroke_color(state.color)
+          document.move_to(x1, y)
+          document.line_to(x2, y)
+          document.stroke
+
+          draw_state.delete(:underline_start)
+        end
+      end
+    end
   end
 end

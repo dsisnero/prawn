@@ -40,24 +40,24 @@ module Prawn
 
         case(options[:align]) 
         when :left
-          state[:x] = 0
+          state[:dx] = 0
         when :center
-          state[:x] = (state[:width] - width) / 2.0
+          state[:dx] = (state[:width] - width) / 2.0
         when :right
-          state[:x] = state[:width] - width
+          state[:dx] = state[:width] - width
         when :justify
-          state[:x] = 0
+          state[:dx] = 0
           state[:padding] = hard_break? ? 0 : (state[:width] - width) / @spaces
           state[:text].word_space(state[:padding])
         end
 
-        relative_x = state[:x] - state[:last_x]
+        relative_x = state[:dx] - state[:last_x]
 
-        state[:y] -= ascent
-        relative_y = state[:y] - state[:last_y]
+        state[:dy] -= ascent
+        relative_y = state[:dy] - state[:last_y]
 
-        state[:last_x] = state[:x]
-        state[:last_y] = state[:y]
+        state[:last_x] = state[:dx]
+        state[:last_y] = state[:dy]
 
         state[:text].move(relative_x, relative_y)
 
@@ -68,7 +68,7 @@ module Prawn
 
         LinkEndInstruction.pause(instructions.last.state, document, state, options)
 
-        state[:y] -= (options[:spacing] || 0) + (height - ascent)
+        state[:dy] -= (options[:spacing] || 0) + (height - ascent)
 #new_x = state[:width] + 10
 #relative_x = new_x - state[:last_x]
 #state[:last_x] = new_x

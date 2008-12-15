@@ -9,7 +9,6 @@ module Prawn
       def initialize(document, text, options={})
         @document = document
         @lexer = Lexer.new(text)
-        @kerning = options[:kerning]
 
         @state = State.new(document,
           :font       => options[:font] || document.font,
@@ -83,6 +82,9 @@ module Prawn
               when :a then
                 instruction = LinkStartInstruction.new(@state, @token[:options][:name], @token[:options][:href])
                 @state = @state.change(:color => "0000ff")
+              when :u then
+                instruction = UnderlineStartInstruction.new(@state)
+                @state = @state.change
               else
                 raise ArgumentError, "unknown tag type #{@token[:tag]}"
               end
@@ -93,6 +95,8 @@ module Prawn
               when :p then
                 instruction = ParagraphEndInstruction.new(@state)
                 @between_paragraphs = true
+              when :u then
+                instruction = UnderlineEndInstruction.new(@state)
               end
               @state = @state.previous
             else

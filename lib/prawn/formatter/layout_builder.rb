@@ -48,7 +48,7 @@ module Prawn
         lines = word_wrap(width, fill_options[:height], &block)
         draw_options = options.merge(fill_options).merge(:state => @state)
         @state = document.draw_lines(x, y, width, lines, draw_options)
-        return @state[:y]
+        return @state[:dy] + y
       end
 
       def next(line_width)
