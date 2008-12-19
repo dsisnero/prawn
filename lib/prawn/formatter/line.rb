@@ -1,21 +1,20 @@
 module Prawn
-  class Formatter
+  module Formatter
 
     class Line
       attr_reader :instructions
-      attr_accessor :offset
+      attr_reader :box
 
-      def initialize(instructions, hard_break)
+      def initialize(instructions, hard_break, box)
         @instructions = instructions
         @length = instructions.length
         @length -= 1 while @length > 0 && @instructions[@length-1].discardable?
 
         @hard_break = hard_break
+        @box = box
 
         @spaces = @instructions[0,@length].inject(0) { |sum, instruction| sum + instruction.spaces }
         @spaces = [1, @spaces].max
-
-        @offset = 0
       end
 
       def hard_break?
@@ -35,45 +34,40 @@ module Prawn
         instructions.map { |instruction| instruction.height(include_blank) }.max
       end
 
+      def each
+        instructions[0,@length].each { |instruction| yield instruction }
+      end
+
       def draw_on(document, state, options={})
         return if @length.zero?
 
-        case(options[:align]) 
+        format_state = instructions.first.state
+
+        case(box.text_align)
         when :left
           state[:dx] = 0
         when :center
-          state[:dx] = (state[:width] - width) / 2.0
+          state[:dx] = (box.width - width) / 2.0
         when :right
-          state[:dx] = state[:width] - width
+          state[:dx] = box.width - width
         when :justify
           state[:dx] = 0
-          state[:padding] = hard_break? ? 0 : (state[:width] - width) / @spaces
+          state[:padding] = hard_break? ? 0 : (box.width - width) / @spaces
           state[:text].word_space(state[:padding])
         end
 
-        relative_x = state[:dx] - state[:last_x]
-
         state[:dy] -= ascent
-        relative_y = state[:dy] - state[:last_y]
+        state[:dx] += box.margin_left
 
-        state[:last_x] = state[:dx]
-        state[:last_y] = state[:dy]
+        state[:text].move_to(state[:dx], state[:dy])
 
-        state[:text].move(relative_x, relative_y)
-
-        LinkStartInstruction.resume(document, state)
         state[:accumulator] = nil
 
-        instructions[0,@length].each { |instruction| instruction.draw(document, state, options) }
+        each { |instruction| instruction.draw(document, state, options) }
 
-        LinkEndInstruction.pause(instructions.last.state, document, state, options)
+        state[:accumulator].flush(document, state) if state[:accumulator]
 
         state[:dy] -= (options[:spacing] || 0) + (height - ascent)
-#new_x = state[:width] + 10
-#relative_x = new_x - state[:last_x]
-#state[:last_x] = new_x
-#state[:text].move(relative_x, 0)
-#state[:text].show(self[:badness].to_s)
       end
     end
 

@@ -1,7 +1,7 @@
 require 'strscan'
 
 module Prawn
-  class Formatter
+  module Formatter
     class Lexer
       class InvalidFormat < RuntimeError; end
 
@@ -9,16 +9,11 @@ module Prawn
 
       def initialize(text)
         @scanner = StringScanner.new(text)
-        @stack = []
         @state = :start
       end
 
       def next
         if @scanner.eos?
-          if @stack.any?
-            raise InvalidFormat, "string terminated with unclosed tags: #{@stack.join(', ')}"
-          end
-
           return nil
         else
           scan_next_token
@@ -36,18 +31,23 @@ module Prawn
         def scan_next_token
           case @state
           when :start then scan_start_state
-          when :end_tag then scan_end_tag
+          when :self_close then scan_self_close_state
           end
         end
 
         def scan_start_state
           if @scanner.scan(/</)
-            scan_open_tag
+            if @scanner.scan(%r(/))
+              scan_end_tag
+            else
+              scan_open_tag
+            end
           elsif @scanner.scan(/&/)
             scan_entity
           else
             text = @scanner.scan(/[^<&]+/) or abort "BUG! not sure how we got here"
-            { :type => :text, :text => text.scan(/[-—]+|\s+|[^-\s]+/) }
+            pieces = text.gsub(/\s*\n+\s*/, " ").scan(/[-—]+|\s+|[^-\s]+/)
+            { :type => :text, :text => pieces }
           end
         end
 
@@ -80,19 +80,17 @@ module Prawn
         end
 
         def scan_open_tag
-          closed = @scanner.scan(%r{/})
-          tag = @scanner.scan(/\w+/)
-          raise InvalidFormat, "'<' without valid tag at #{@scanner.pos} -> #{@scanner.rest.inspect}" unless tag
-
+          tag = @scanner.scan(/\w+/) or error("'<' without valid tag")
           tag = tag.downcase.to_sym
+
           options = {}
           @scanner.skip(/\s*/)
           while !@scanner.eos? && @scanner.peek(1) =~ /\w/
-            name = @scanner.scan(/\w+/) or raise InvalidFormat, "expected option name at #{@scanner.pos} -> #{@scanner.rest.inspect}"
-            @scanner.scan(/\s*=\s*/) or raise InvalidFormat, "expected assigment after option name at #{@scanner.pos} -> #{@scanner.rest.inspect}"
+            name = @scanner.scan(/\w+/)
+            @scanner.scan(/\s*=\s*/) or error("expected assigment after option #{name}")
             if (delim = @scanner.scan(/['"]/))
               value = @scanner.scan(/[^#{delim}]*/)
-              @scanner.scan(/#{delim}/) or raise InvalidFormat, "expected option value to end with #{delim} at #{@scanner.pos} -> #{@scanner.rest.inspect}"
+              @scanner.scan(/#{delim}/) or error("expected option value to end with #{delim}")
             else
               value = @scanner.scan(/[^\s>]*/)
             end
@@ -100,24 +98,34 @@ module Prawn
             @scanner.skip(/\s*/)
           end
 
-          @self_close = !closed && @scanner.scan(%r(/))
-
-          @scanner.scan(/>/) or raise InvalidFormat, "unclosed tag #{tag.inspect} at #{@scanner.pos} -> #{@scanner.rest.inspect}"
-
-          if closed
-            raise InvalidFormat, "improperly nested tags (attempt to close #{@stack.last.inspect} with #{tag.inspect}) at #{@scanner.pos} -> #{@scanner.rest.inspect}" if @stack.empty? || @stack.last != tag
-            @stack.pop
-            { :type => :close, :tag => tag }
+          if @scanner.scan(%r(/))
+            @self_close = true
+            @tag = tag
+            @state = :self_close
           else
-            @state = @self_close ? :end_tag : :start
-            @stack.push(tag)
-            { :type => :open, :tag => tag, :options => options }
+            @self_close = false
+            @state = :start
           end
+
+          @scanner.scan(/>/) or error("unclosed tag #{tag.inspect}")
+
+          { :type => :open, :tag => tag, :options => options }
         end
 
         def scan_end_tag
+          tag = @scanner.scan(/\w+/).to_sym
+          @scanner.skip(/\s*/)
+          @scanner.scan(/>/) or error("unclosed ending tag #{tag.inspect}")
+          { :type => :close, :tag => tag }
+        end
+
+        def scan_self_close_state
           @state = :start
-          { :type => :close, :tag => @stack.pop }
+          { :type => :close, :tag => @tag }
+        end
+
+        def error(message)
+          raise InvalidFormat, "#{message} at #{@scanner.pos} -> #{@scanner.rest.inspect}"
         end
     end
   end

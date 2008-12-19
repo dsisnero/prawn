@@ -1,96 +1,102 @@
 module Prawn
-  class Formatter
+  module Formatter
     class State
       attr_reader :document
-      attr_reader :previous
-
-      attr_reader :font
-      attr_reader :font_size
-      attr_reader :font_style
-      attr_reader :color
-      attr_reader :rise
+      attr_reader :original_style, :style
 
       def initialize(document, options={})
         @document = document
         @previous = options[:previous]
 
-        if @previous
-          @font       = @previous.font
-          @font_size  = @previous.font_size
-          @font_style = @previous.font_style
-          @color      = @previous.color
-          @kerning    = @previous.kerning?
-          @rise       = @previous.rise
-        end
+        @original_style = (@previous && @previous.inheritable_style || {}).
+          merge(options[:style] || {})
 
-        @font       = options[:font]       || @font
-        @font_size  = options[:font_size]  || @font_size
-        @font_style = options[:font_style] || @font_style || :normal
-        @color      = options[:color]      || @color      || "000000"
-        @kerning    = options.fetch(:kerning, @kerning)
-        @rise       = options[:rise]       || @rise       || 0
+        compute_styles!
+      end
+
+      def inheritable_style
+        @inheritable_style ||= begin
+          subset = original_style.dup
+          subset.delete(:meta)
+          subset.delete(:display)
+          subset.delete(:text_indent)
+          subset.delete(:margin_left)
+          subset.delete(:margin_right)
+          subset.delete(:margin_top)
+          subset.delete(:margin_bottom)
+          subset.delete(:width)
+          subset
+        end
       end
 
       def kerning?
-        @kerning
+        @style[:kerning]
       end
 
-      def bold?
-        font_style == :bold || font_style == :bold_italic
+      def display
+        @style[:display] || :inline
       end
 
-      def italic?
-        font_style == :italic || font_style == :bold_italic
+      def text_align
+        @style[:text_align] || :left
       end
 
-      def change_font(options={})
-        font  = options[:font] || self.font
-        size  = options[:size] || font_size
-        style = add_style(options[:style])
-
-        options = options.merge(:previous => self,
-          :font => document.find_font(font.family || font.name, :style => style),
-          :font_size => size, :font_style => style)
-
-        self.class.new(document, options)
+      def font_size
+        @style[:font_size] || 12
       end
 
-      def bold!
-        change_font :style => :bold
+      def font_family
+        @style[:font_family] || "Helvetica"
       end
 
-      def italic!
-        change_font :style => :italic
+      def font_style
+        @style[:font_style] || :normal
       end
 
-      def grow!
-        change_font :size => font_size + 2
+      def font_weight
+        @style[:font_weight] || :normal
       end
 
-      def shrink!
-        change_font :size => font_size - 2
+      def color
+        @style[:color] || "000000"
       end
 
-      def sup!
-        change_font :size => font_size * 0.7, :rise => rise + font_size * 0.4
+      def vertical_align
+        @style[:vertical_align] || 0
       end
 
-      def sub!
-        change_font :size => font_size * 0.7, :rise => rise - font_size * 0.3
+      def text_indent
+        @style[:text_indent] || 0
       end
 
-      def change(options={})
-        font = document.find_font(options[:font], :style => font_style) if options[:font]
-        color = options[:color] || color
-        size = options[:size] || font_size
-        self.class.new(document, :previous => self, :font => font, :color => color,
-          :font_size => size)
+      def text_decoration
+        @style[:text_decoration] || :none
+      end
+
+      def font
+        @font ||= document.find_font(font_family, :style => pdf_font_style)
+      end
+
+      def pdf_font_style
+        if bold? && italic?
+          :bold_italic
+        elsif bold?
+          :bold
+        elsif italic?
+          :italic
+        else
+          :normal
+        end
+      end
+
+      def with_style(style)
+        self.class.new(document, :previous => self, :style => style)
       end
 
       def apply!(text_object, cookies)
-        if cookies[:font] != [font.name, font_size]
-          cookies[:font] = [font.name, font_size]
-          document.font(font.name, :size => font_size)
+        if cookies[:font] != [font_family, pdf_font_style, font_size]
+          cookies[:font] = [font_family, pdf_font_style, font_size]
+          font = document.font(font_family, :style => pdf_font_style)
           text_object.font(font.identifier, font_size)
         end
 
@@ -99,29 +105,42 @@ module Prawn
           text_object.fill_color(color)
         end
 
-        if cookies[:rise] != rise
-          cookies[:rise] = rise
-          text_object.rise(rise || 0)
+        if cookies[:vertical_align] != vertical_align
+          cookies[:vertical_align] = vertical_align
+          text_object.rise(vertical_align)
         end
+      end
+
+      def italic?
+        font_style == :italic || font_style == :bold_italic
+      end
+
+      def bold?
+        font_style == :bold || font_style == :bold_italic
+      end
+
+      def previous(attr=nil, default=nil)
+        return @previous unless attr
+        return default unless @previous
+        return @previous.send(attr) || default
       end
 
       private
 
-        def add_style(style)
-          case style
-          when nil then return font_style
-          when :normal then return style
-          when :bold then
-            return :bold_italic if font_style == :italic
-            return style
-          when :italic then
-            return :bold_italic if font_style == :bold
-            return style
-          when :bold_italic then
-            return style
-          else
-            raise ArgumentError, "unknown font-style #{font_style.inspect}"
-          end
+        def compute_styles!
+          @style = @original_style.dup
+
+          evaluate_style(:font_size, 12, :current)
+          evaluate_style(:text_indent, nil, :current)
+          evaluate_style(:vertical_align, 0, font_size, :super => "+40%", :sub => "-30%")
+        end
+
+        def evaluate_style(which, default, relative_to, mappings={})
+          current = previous(which, default)
+          relative_to = current if relative_to == :current
+          @style[which] = document.evaluate_measure(@style[which],
+            :em => @previous && @previous.font_size || 12,
+            :current => current, :relative => relative_to, :mappings => mappings) || default
         end
     end
   end

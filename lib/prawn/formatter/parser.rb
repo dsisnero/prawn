@@ -1,29 +1,34 @@
-require 'prawn/formatter/instruction'
+require 'prawn/formatter/instructions/text'
+require 'prawn/formatter/instructions/tag_open'
+require 'prawn/formatter/instructions/tag_close'
 require 'prawn/formatter/lexer'
 require 'prawn/formatter/line'
 require 'prawn/formatter/state'
 
 module Prawn
-  class Formatter
+  module Formatter
     class Parser
+      class TagError < RuntimeError; end
+
+      attr_reader :document
+      attr_reader :styles
+      attr_reader :state
+
       def initialize(document, text, options={})
         @document = document
         @lexer = Lexer.new(text)
+        @styles = options[:styles] || {}
 
-        @state = State.new(document,
-          :font       => options[:font] || document.font,
-          :font_size  => options[:size] || document.font.size,
-          :font_style => options[:style] || :normal,
-          :color      => options[:color],
-          :kerning    => options[:kerning])
+        @state = State.new(document, :style => options[:style])
 
-        @between_paragraphs = false
         @action = :start
-        @stack = []
+
+        @saved = []
+        @tag_stack = []
       end
 
       def next
-        return @stack.pop if @stack.any?
+        return @saved.pop if @saved.any?
 
         case @action
         when :start then start_parse
@@ -33,7 +38,7 @@ module Prawn
       end
 
       def push(instruction)
-        @stack.push(instruction)
+        @saved.push(instruction)
       end
 
       def peek
@@ -56,48 +61,22 @@ module Prawn
               @position = 0
               instruction = text_parse
             when :open
-              @between_paragraphs = false
-              case @token[:tag]
-              when :b then
-                @state = @state.bold!
-              when :i then
-                @state = @state.italic!
-              when :big then
-                @state = @state.grow!
-              when :small then
-                @state = @state.shrink!
-              when :sup then
-                @state = @state.sup!
-              when :sub then
-                @state = @state.sub!
-              when :font then
-                @state = @state.change(:font => @token[:options][:font],
-                  :color => @token[:options][:color], :size => @token[:options][:size])
-              when :br then
-                instruction = LineBreakInstruction.new(@state)
-                @state = @state.change
-              when :p then
-                instruction = ParagraphStartInstruction.new(@state)
-                @state = @state.change
-              when :a then
-                instruction = LinkStartInstruction.new(@state, @token[:options][:name], @token[:options][:href])
-                @state = @state.change(:color => "0000ff")
-              when :u then
-                instruction = UnderlineStartInstruction.new(@state)
-                @state = @state.change
-              else
-                raise ArgumentError, "unknown tag type #{@token[:tag]}"
+              @tag_stack << @token
+              @token[:style] = @styles[@token[:tag]] or raise TagError, "undefined tag #{@token[:tag]}"
+
+              if @token[:style][:meta]
+                @token[:style][:meta].each do |key, value|
+                  @token[:options][value] = @token[:options][key]
+                end
               end
+
+              @state = @state.with_style(@token[:style])
+              instruction = Instructions::TagOpen.new(@state, @token)
             when :close
-              case @token[:tag]
-              when :a then
-                instruction = LinkEndInstruction.new(@state)
-              when :p then
-                instruction = ParagraphEndInstruction.new(@state)
-                @between_paragraphs = true
-              when :u then
-                instruction = UnderlineEndInstruction.new(@state)
-              end
+              raise TagError, "closing #{@token[:tag]}, but no tags are open" if @tag_stack.empty?
+              raise TagError, "closing #{@tag_stack.last[:tag]} with #{@token[:tag]}" if @tag_stack.last[:tag] != @token[:tag]
+
+              instruction = Instructions::TagClose.new(@state, @tag_stack.pop)
               @state = @state.previous
             else
               raise ArgumentError, "[BUG] unknown token type #{@token[:type].inspect} (#{@token.inspect})"
@@ -112,15 +91,8 @@ module Prawn
         def text_parse
           if @token[:text][@position]
             @action = :text
-            instruction = TextInstruction.new(@state, @token[:text][@position])
             @position += 1
-
-            if @between_paragraphs && instruction.discardable?
-              text_parse
-            else
-              @between_paragraphs = false
-              instruction
-            end
+            Instructions::Text.new(@state, @token[:text][@position - 1])
           else
             @action = :start
             start_parse

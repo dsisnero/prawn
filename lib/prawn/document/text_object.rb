@@ -20,6 +20,7 @@ module Prawn
 
         def initialize
           @content = nil
+          @last_x = @last_y = 0
         end
 
         def open
@@ -32,14 +33,18 @@ module Prawn
           self
         end
 
-        def move(dx,dy)
+        def move_to(x, y)
+          move_by(x - @last_x, y - @last_y)
+        end
+
+        def move_by(dx,dy)
+          @last_x += dx
+          @last_y += dy
           @content << "#{dx} #{dy} Td\n"
           self
         end
 
-        def next_line
-          @content << "T*\n"
-          self
+        def next_line(dy)
         end
 
         def show(argument)

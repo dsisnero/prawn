@@ -1,25 +1,27 @@
-require 'prawn/formatter/instruction'
+require 'prawn/formatter/box'
 require 'prawn/formatter/line'
 require 'prawn/formatter/parser'
-require 'prawn/formatter/state'
 
 module Prawn
-  class Formatter
+  module Formatter
     class LayoutBuilder
       attr_reader :document, :options
 
       def initialize(document, text, options={})
         @document = document
         @options  = options
-        @parser   = Parser.new(@document, text, options)
+        @styles   = document.styles.merge(options[:styles] || {})
+        style     = document.default_style.merge(options[:style] || {})
+        @parser   = Parser.new(@document, text, :styles => @styles, :style => style)
         @state    = {}
+        @box      = Box.new(nil, @parser.state)
       end
 
       def done?
         @parser.eos?
       end
 
-      def word_wrap(width, height=nil, &block)
+      def word_wrap(height=nil, &block)
         if height && block
           raise ArgumentError, "cannot specify both height and a block"
         elsif height
@@ -31,8 +33,9 @@ module Prawn
         lines = []
         total_height = 0
 
-        while (line = self.next(width))
+        while (line = self.next)
           if block[line, total_height + line.height]
+            @box = lines.last.box if lines.any?
             unget(line)
             break
           end
@@ -44,22 +47,40 @@ module Prawn
         return lines
       end
 
-      def fill(x, y, width, fill_options={}, &block)
-        lines = word_wrap(width, fill_options[:height], &block)
+      def fill(x, y, fill_options={}, &block)
+        @box.resize!(fill_options[:width]) if fill_options[:width]
+        lines = word_wrap(fill_options[:height], &block)
         draw_options = options.merge(fill_options).merge(:state => @state)
-        @state = document.draw_lines(x, y, width, lines, draw_options)
+        @state = document.draw_lines(x, y, @box.full_width, lines, draw_options)
+        @state.delete(:cookies)
         return @state[:dy] + y
       end
 
-      def next(line_width)
+      def width=(width)
+        @box.resize!(width)
+      end
+
+      def next
         line = []
         width = 0
         break_at = nil
+        force_break = false
+        line_width = @box.width
 
         while (instruction = @parser.next)
           line.push(instruction)
 
-          if instruction.break?
+          if instruction.start_box? && line.length > 1
+            if line.all? { |i| i.start_box? || i.discardable? }
+              line.clear
+              line.push(instruction)
+              width = instruction.width
+              break_at = nil
+            else
+              force_break = true
+              break_at = line.length - 1
+            end
+          elsif instruction.break?
             width += instruction.width(:nondiscardable)
             break_at = line.length if width <= line_width
             width += instruction.width(:discardable)
@@ -67,16 +88,23 @@ module Prawn
             width += instruction.width
           end
 
-          if instruction.force_break? || width >= line_width
+          if force_break || instruction.force_break? || width >= line_width
             break_at ||= line.length
-            hard_break = instruction.force_break? || @parser.eos?
+            hard_break = force_break || instruction.force_break? || @parser.eos?
 
             @parser.push(line.pop) while line.length > break_at
-            return Line.new(line, hard_break)
+
+            box = @box
+            @box = @box.container if line.last.end_box?
+
+            return Line.new(line, hard_break, box)
+          elsif instruction.start_box?
+            @box = Box.new(@box, instruction.state)
+            line_width = @box.width
           end
         end
 
-        Line.new(line, true) if line.any?
+        Line.new(line, true, @box) if line.any?
       end
 
       def unget(line)

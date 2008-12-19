@@ -102,6 +102,62 @@ module Prawn
         font(original_font) 
       end 
 
+      DEFAULT_STYLES = {
+        :b   => { :font_weight => :bold },
+        :i   => { :font_style => :italic },
+        :u   => { :text_decoration => :underline },
+        :br  => { :display => :break },
+        :p   => { :display => :block, :text_indent => "3em" },
+        :sup => { :vertical_align => :super, :font_size => "70%" },
+        :sub => { :vertical_align => :sub, :font_size => "70%" },
+        :a   => { :meta => { :name => :anchor, :href => :target }, :color => "0000ff", :text_decoration => :underline }
+      }.freeze
+
+      def styles(update={})
+        @styles ||= DEFAULT_STYLES.dup
+        @styles.update(update)
+      end
+
+      def default_style
+        { :font_family => font.family || font.name,
+          :font_size   => font.size,
+          :color       => fill_color }
+      end
+
+      def evaluate_measure(measure, options={})
+        case measure
+        when nil then nil
+        when Numeric then return measure
+        when Symbol then
+          mappings = options[:mappings] || {}
+          raise ArgumentError, "unrecognized value #{measure.inspect}" unless mappings.key?(measure)
+          return evalute_measure(mappings[measure], options)
+        when String then
+          operator, value, unit = measure.match(/^([-+]?)(\d+(?:\.\d+)?)(.*)$/)[1,3]
+
+          value = case unit
+            when "%" then
+              relative = options[:relative] || 0
+              return relative * value.to_f / 100
+            when "em" then
+              # not a true em, but good enough for approximating. patches welcome.
+              return value.to_f * (options[:em] || font.size)
+            when "", "pt" then return value.to_f
+            when "pc" then return value.to_f * 12
+            when "in" then return value.to_f * 72
+            else raise ArgumentError, "unsupport units in style value: #{measure.inspect}"
+            end
+
+          current = options[:current] || 0
+          case operator
+          when "+" then return current + value
+          when "-" then return current - value
+          else return value
+          end
+        else return measure.to_f
+        end
+      end
+
       def draw_lines(x, y, width, lines, options={})
         real_x = x + bounds.absolute_left
         real_y = y + bounds.absolute_bottom
@@ -114,8 +170,7 @@ module Prawn
         state = state.merge(:width => width,
           :x => x, :y => y,
           :real_x => real_x, :real_y => y,
-          :dx => 0, :dy => 0,
-          :last_x => 0, :last_y => 0)
+          :dx => 0, :dy => 0)
 
         state[:cookies] ||= {}
 
@@ -148,7 +203,7 @@ module Prawn
           x = bounds.left + column * width
           y = bounds.top
 
-          helper.fill(x, y, width - gap, options.merge(:height => bounds.height))
+          helper.fill(x, y, options.merge(:width => width - gap, :height => bounds.height))
 
           unless helper.done?
             column += 1
