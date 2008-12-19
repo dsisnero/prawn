@@ -169,7 +169,7 @@ module Prawn
 
         state = state.merge(:width => width,
           :x => x, :y => y,
-          :real_x => real_x, :real_y => y,
+          :real_x => real_x, :real_y => real_y,
           :dx => 0, :dy => 0)
 
         state[:cookies] ||= {}

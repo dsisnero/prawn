@@ -45,7 +45,7 @@ module Prawn
             return unless tag[:options][:anchor]
 
             x = draw_state[:real_x]
-            y = draw_state[:real_y] + draw_state[:dy] + height
+            y = draw_state[:real_y] + draw_state[:dy] + ascent
 
             label, destination = case tag[:options][:anchor]
               when /^zoom=([\d\.]+):(.*)$/
@@ -63,7 +63,7 @@ module Prawn
               when /^fitbv:(.*)$/
                 [$1, document.dest_fit_bounds_vertically(x)]
               else
-                [tag[:options][:anchor], document.dest_xyz(document.bounds.left, document.bounds.top, nil)]
+                [tag[:options][:anchor], document.dest_xyz(document.bounds.absolute_left, document.bounds.absolute_top, nil)]
               end
             document.add_dest(label, destination)
           end
