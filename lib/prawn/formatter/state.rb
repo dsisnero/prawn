@@ -112,11 +112,11 @@ module Prawn
       end
 
       def italic?
-        font_style == :italic || font_style == :bold_italic
+        font_style == :italic
       end
 
       def bold?
-        font_style == :bold || font_style == :bold_italic
+        font_weight == :bold
       end
 
       def previous(attr=nil, default=nil)
