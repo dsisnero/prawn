@@ -65,6 +65,7 @@ module Prawn
               else
                 [tag[:options][:anchor], document.dest_xyz(document.bounds.absolute_left, document.bounds.absolute_top, nil)]
               end
+
             document.add_dest(label, destination)
           end
 
@@ -72,7 +73,17 @@ module Prawn
             return unless tag[:options][:target]
 
             draw_state[:link_stack] ||= []
-            draw_state[:link_stack] << [tag[:options][:target], draw_state[:dx]]
+            draw_state[:link_stack] << { :target => tag[:options][:target],
+              :dx => draw_state[:dx] }
+
+            draw_state[:on_wrap] ||= []
+            draw_state[:on_wrap] << Proc.new { wrap_link(document, draw_state) }
+          end
+
+          def wrap_link(document, draw_state)
+            TagClose.close(state, tag, draw_state)
+            draw_state[:link_stack] << { :target => tag[:options][:target], :dx => 0 }
+            draw_state[:on_wrap] << Proc.new { wrap_link(document, draw_state) }
           end
       end
 

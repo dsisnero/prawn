@@ -5,6 +5,11 @@ module Prawn
     module Instructions
 
       class TagClose < Base
+        def self.close(state, tag, draw_state)
+          closer = new(state, tag)
+          closer.draw(state.document, draw_state)
+        end
+
         attr_reader :tag
 
         def initialize(state, tag)
@@ -43,13 +48,14 @@ module Prawn
             return unless @tag[:options][:target]
 
             link_state = draw_state[:link_stack].pop
-            x1 = draw_state[:real_x] + link_state.last
+            x1 = draw_state[:real_x] + link_state[:dx]
             x2 = draw_state[:real_x] + draw_state[:dx]
             y  = draw_state[:real_y] + draw_state[:dy]
 
             rect = [x1, y + state.font.descender, x2, y + ascent]
-p rect
-            document.link_annotation(rect, :Dest => link_state.first, :Border => [0,0,0])
+            document.link_annotation(rect, :Dest => link_state[:target], :Border => [0,0,0])
+
+            draw_state[:on_wrap].pop
           end
       end
 

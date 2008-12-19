@@ -66,6 +66,7 @@ module Prawn
         each { |instruction| instruction.draw(document, state, options) }
 
         state[:accumulator].flush(document, state) if state[:accumulator]
+        (state[:on_wrap] || []).reverse.each { |callback| callback.call }
 
         state[:dy] -= (options[:spacing] || 0) + (height - ascent)
       end
