@@ -138,17 +138,17 @@ module Prawn
         when Symbol then
           mappings = options[:mappings] || {}
           raise ArgumentError, "unrecognized value #{measure.inspect}" unless mappings.key?(measure)
-          return evalute_measure(mappings[measure], options)
+          return evaluate_measure(mappings[measure], options)
         when String then
           operator, value, unit = measure.match(/^([-+]?)(\d+(?:\.\d+)?)(.*)$/)[1,3]
 
           value = case unit
             when "%" then
               relative = options[:relative] || 0
-              return relative * value.to_f / 100
+              relative * value.to_f / 100
             when "em" then
               # not a true em, but good enough for approximating. patches welcome.
-              return value.to_f * (options[:em] || font.size)
+              value.to_f * (options[:em] || font.size)
             when "", "pt" then return value.to_f
             when "pc" then return value.to_f * 12
             when "in" then return value.to_f * 72
