@@ -1,4 +1,6 @@
 require 'prawn/formatter/instructions/base'
+require 'prawn/formatter/effects/link'
+require 'prawn/formatter/effects/underline'
 
 module Prawn
   module Formatter
@@ -22,6 +24,7 @@ module Prawn
           draw_text_indent(document, draw_state)
           draw_destination(document, draw_state)
           draw_link(document, draw_state)
+          draw_underline(document, draw_state)
         end
 
         def start_box?
@@ -71,19 +74,19 @@ module Prawn
 
           def draw_link(document, draw_state)
             return unless tag[:options][:target]
-
-            draw_state[:link_stack] ||= []
-            draw_state[:link_stack] << { :target => tag[:options][:target],
-              :dx => draw_state[:dx] }
-
-            draw_state[:on_wrap] ||= []
-            draw_state[:on_wrap] << Proc.new { wrap_link(document, draw_state) }
+            add_effect(Effects::Link.new(tag[:options][:target], draw_state[:dx]), draw_state)
           end
 
-          def wrap_link(document, draw_state)
-            TagClose.close(state, tag, draw_state)
-            draw_state[:link_stack] << { :target => tag[:options][:target], :dx => 0 }
-            draw_state[:on_wrap] << Proc.new { wrap_link(document, draw_state) }
+          def draw_underline(document, draw_state)
+            return unless tag[:style][:text_decoration] == :underline
+            add_effect(Effects::Underline.new(draw_state[:dx]), draw_state)
+          end
+
+          def add_effect(effect, draw_state)
+            tag[:effects] ||= []
+            tag[:effects].push(effect)
+
+            draw_state[:pending_effects].push(effect)
           end
       end
 

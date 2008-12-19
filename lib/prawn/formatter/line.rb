@@ -30,6 +30,11 @@ module Prawn
         instructions.map { |instruction| instruction.ascent }.max || 0
       end
 
+      # distance from bottom of line to baseline
+      def descent
+        instructions.map { |instruction| instruction.descent }.min || 0
+      end
+
       def height(include_blank=false)
         instructions.map { |instruction| instruction.height(include_blank) }.max
       end
@@ -60,13 +65,14 @@ module Prawn
         state[:dx] += box.margin_left
 
         state[:text].move_to(state[:dx], state[:dy])
+        state[:line] = self
 
         state[:accumulator] = nil
 
         each { |instruction| instruction.draw(document, state, options) }
 
         state[:accumulator].flush(document, state) if state[:accumulator]
-        (state[:on_wrap] || []).reverse.each { |callback| callback.call }
+        state[:pending_effects].each { |effect| effect.wrap(document, state) }
 
         state[:dy] -= (options[:spacing] || 0) + (height - ascent)
       end

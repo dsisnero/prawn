@@ -173,6 +173,7 @@ module Prawn
           :dx => 0, :dy => 0)
 
         state[:cookies] ||= {}
+        state[:pending_effects] ||= []
 
         text_object do |text|
           text.rotate(real_x, real_y, options[:rotate] || 0)

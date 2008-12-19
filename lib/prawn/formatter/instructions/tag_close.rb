@@ -23,7 +23,10 @@ module Prawn
 
         def draw(document, draw_state, options={})
           flush(document, draw_state)
-          draw_link(document, draw_state)
+          (@tag[:effects] || []).each do |effect|
+            effect.finish(document, draw_state)
+            draw_state[:pending_effects].delete(effect)
+          end
         end
 
         def break?
@@ -41,22 +44,6 @@ module Prawn
         def end_box?
           @tag[:style][:display] == :block
         end
-
-        private
-
-          def draw_link(document, draw_state)
-            return unless @tag[:options][:target]
-
-            link_state = draw_state[:link_stack].pop
-            x1 = draw_state[:real_x] + link_state[:dx]
-            x2 = draw_state[:real_x] + draw_state[:dx]
-            y  = draw_state[:real_y] + draw_state[:dy]
-
-            rect = [x1, y + state.font.descender, x2, y + ascent]
-            document.link_annotation(rect, :Dest => link_state[:target], :Border => [0,0,0])
-
-            draw_state[:on_wrap].pop
-          end
       end
 
     end
