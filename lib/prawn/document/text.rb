@@ -204,6 +204,12 @@ module Prawn
         return helper
       end
 
+      def format(text, options={})
+        layout(text, options) do |helper|
+          self.y = helper.fill(bounds.left, y - bounds.absolute_bottom, options.merge(:width => bounds.width, :height => bounds.height))
+        end
+      end
+
       def paginate(text, options={})
         helper  = layout(text, options)
 
@@ -214,7 +220,7 @@ module Prawn
 
         until helper.done?
           x = bounds.left + column * width
-          y = bounds.top
+          y = self.y - bounds.absolute_bottom
 
           helper.fill(x, y, options.merge(:width => width - gap, :height => bounds.height))
 
