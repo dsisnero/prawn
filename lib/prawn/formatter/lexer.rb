@@ -5,8 +5,6 @@ module Prawn
     class Lexer
       class InvalidFormat < RuntimeError; end
 
-      attr_reader :tokens
-
       def initialize(text)
         @scanner = StringScanner.new(text)
         @state = :start
@@ -35,6 +33,13 @@ module Prawn
           end
         end
 
+        TEXT_PATTERN = /
+            -+                    | # hyphens
+            \xE2\x80\x94+         | # mdashes
+            \s+                   | # whitespace
+            [^-\xE2\x80\x94\s&<]+   # everything else
+          /x
+
         def scan_start_state
           if @scanner.scan(/</)
             if @scanner.scan(%r(/))
@@ -45,8 +50,12 @@ module Prawn
           elsif @scanner.scan(/&/)
             scan_entity
           else
-            text = @scanner.scan(/[^<&]+/) or abort "BUG! not sure how we got here"
-            pieces = text.gsub(/\s*\n+\s*/, " ").scan(/[-—]+|\s+|[^-\s]+/)
+            pieces = []
+            loop do
+              chunk = @scanner.scan(TEXT_PATTERN) or break
+              chunk = " " if chunk =~ /\s\s+/
+              pieces << chunk
+            end
             { :type => :text, :text => pieces }
           end
         end
