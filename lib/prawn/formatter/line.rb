@@ -36,6 +36,13 @@ module Prawn
       end
 
       def height(include_blank=false)
+        h = font_height(include_blank)
+        h += box.margin_top if start_of_box?
+        h += box.margin_bottom if end_of_box?
+        return h
+      end
+
+      def font_height(include_blank=false)
         instructions.map { |instruction| instruction.height(include_blank) }.max
       end
 
@@ -44,7 +51,7 @@ module Prawn
       end
 
       def start_of_box?
-        instructions[0].start_box?
+        instructions.first.start_box?
       end
 
       def end_of_box?
@@ -83,7 +90,7 @@ module Prawn
         state[:accumulator].flush(document, state) if state[:accumulator]
         state[:pending_effects].each { |effect| effect.wrap(document, state) }
 
-        state[:dy] -= (options[:spacing] || 0) + (height - ascent)
+        state[:dy] -= (options[:spacing] || 0) + (font_height - ascent)
         state[:dy] -= box.margin_bottom if end_of_box?
       end
     end
