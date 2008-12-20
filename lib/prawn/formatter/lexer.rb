@@ -58,22 +58,20 @@ module Prawn
           "gt"    => ">",
           "amp"   => "&",
           "mdash" => "\xE2\x80\x94",
-          "ndash" => "\xE2\x80\x93"
+          "ndash" => "\xE2\x80\x93",
+          "nbsp"  => "\xC2\xA0",
         }
 
         def scan_entity
-          entity = @scanner.scan(/(?:#x?)?\w+/) or raise InvalidFormat, "bad format for entity at #{@scanner.pos} -> #{@scanner.rest.inspect}"
-          @scanner.scan(/;/) or raise InvalidFormat, "missing semicolon to terminate entity at #{@scanner.pos} -> #{@scanner.rest.inspect}"
+          entity = @scanner.scan(/(?:#x?)?\w+/) or error("bad format for entity")
+          @scanner.scan(/;/) or error("missing semicolon to terminate entity")
 
           text = case entity
             when /#(\d+)/ then [$1.to_i].pack("U*")
             when /#x([0-9a-f]+)/ then [$1.to_i(16)].pack("U*")
             else
-              result = ENTITY_MAP[entity].dup
-              if result.nil?
-                raise InvalidFormat, "unrecognized entity #{entity.inspect} at #{@scanner.pos} -> #{@scanner.rest.inspect}"
-              end
-              result
+              result = ENTITY_MAP[entity] or error("unrecognized entity #{entity.inspect}")
+              result.dup
             end
 
           { :type => :text, :text => [text] }
@@ -125,7 +123,7 @@ module Prawn
         end
 
         def error(message)
-          raise InvalidFormat, "#{message} at #{@scanner.pos} -> #{@scanner.rest.inspect}"
+          raise InvalidFormat, "#{message} at #{@scanner.pos} -> #{@scanner.rest.inspect[0,50]}..."
         end
     end
   end
