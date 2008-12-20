@@ -43,6 +43,14 @@ module Prawn
         instructions[0,@length].each { |instruction| yield instruction }
       end
 
+      def start_of_box?
+        instructions[0].start_box?
+      end
+
+      def end_of_box?
+        instructions[@length-1].end_box?
+      end
+
       def draw_on(document, state, options={})
         return if @length.zero?
 
@@ -61,6 +69,7 @@ module Prawn
           state[:text].word_space(state[:padding])
         end
 
+        state[:dy] -= box.margin_top if start_of_box?
         state[:dy] -= ascent
         state[:dx] += box.margin_left
 
@@ -75,6 +84,7 @@ module Prawn
         state[:pending_effects].each { |effect| effect.wrap(document, state) }
 
         state[:dy] -= (options[:spacing] || 0) + (height - ascent)
+        state[:dy] -= box.margin_bottom if end_of_box?
       end
     end
 
