@@ -42,6 +42,8 @@ module Prawn
 
           total_height += line.height
           lines.push(line)
+
+          break if line.page_break?
         end
 
         return lines

@@ -34,6 +34,10 @@ module Prawn
           false
         end
 
+        def page_break?
+          false
+        end
+
         def discardable?
           false
         end

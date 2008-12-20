@@ -38,7 +38,13 @@ module Prawn
         end
 
         def force_break?
-          @tag[:style][:display] == :block || @tag[:style][:display] == :break
+          @tag[:style][:display] == :block ||
+          @tag[:style][:display] == :break ||
+          @tag[:style][:display] == :page_break
+        end
+
+        def page_break?
+          @tag[:style][:display] == :page_break
         end
 
         def end_box?

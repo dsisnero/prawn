@@ -55,7 +55,11 @@ module Prawn
       end
 
       def end_of_box?
-        instructions[@length-1].end_box?
+        instructions.last.end_box?
+      end
+
+      def page_break?
+        instructions.last.page_break?
       end
 
       def draw_on(document, state, options={})
