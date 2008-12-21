@@ -2,14 +2,47 @@ require 'strscan'
 
 module Prawn
   module Formatter
+
+    # The Lexer class is used by the formatting subsystem to scan a string
+    # and extract tokens from it. The tokens it looks for are either text,
+    # XML entities, or XML tags.
+    #
+    # Note that the lexer only scans for a subset of XML--it is not a true
+    # XML scanner, and understands just enough to provide a basic markup
+    # language for use in formatting documents.
+    #
+    # The subset includes only XML entities and tags--instructions, comments,
+    # and the like are not supported.
     class Lexer
+      # When the scanner encounters a state or entity it is not able to
+      # handle, this exception will be raised.
       class InvalidFormat < RuntimeError; end
 
+      # Create a new lexer that will scan the given text. The text must be
+      # UTF-8 encoded, and must consist of well-formed XML in the subset
+      # understand by the lexer.
       def initialize(text)
         @scanner = StringScanner.new(text)
         @state = :start
       end
 
+      # Returns the next token from the scanner. If the end of the string
+      # has been reached, this will return nil. Otherwise, the token itself
+      # is returned as a hash. The hash will always include a :type key,
+      # identifying the type of the token. It will be one of :text, :open,
+      # or :close.
+      #
+      # For :text tokens, the hash will also contain a :text key, which will
+      # point to an array of strings. Each element of the array contains
+      # either word, whitespace, or some other character at which the line
+      # may be broken.
+      #
+      # For :open tokens, the hash will contain a :tag key which identifies
+      # the name of the tag (as a symbol), and an :options key, which
+      # is another hash that contains the options that were given with the
+      # tag.
+      #
+      # For :close tokens, the hash will contain only a :tag key.
       def next
         if @state == :start && @scanner.eos?
           return nil
@@ -18,6 +51,9 @@ module Prawn
         end
       end
 
+      # Iterates over each token in the string, until the end of the string
+      # is reached. Each token is yielded. See #next for a discussion of the
+      # available token types.
       def each
         while (token = next_token)
           yield token
@@ -35,7 +71,7 @@ module Prawn
 
         TEXT_PATTERN = /
             -+                    | # hyphens
-            \xE2\x80\x94+         | # mdashes
+            \xE2\x80\x94+         | # em-dashes
             \s+                   | # whitespace
             [^-\xE2\x80\x94\s&<]+   # everything else
           /x
@@ -60,8 +96,6 @@ module Prawn
           end
         end
 
-        # TODO: is it worth fleshing this out with a full list of all recognized
-        # HTML entities?
         ENTITY_MAP = {
           "lt"    => "<",
           "gt"    => ">",
