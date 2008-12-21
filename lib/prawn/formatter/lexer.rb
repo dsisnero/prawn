@@ -11,7 +11,7 @@ module Prawn
       end
 
       def next
-        if @scanner.eos?
+        if @state == :start && @scanner.eos?
           return nil
         else
           scan_next_token
