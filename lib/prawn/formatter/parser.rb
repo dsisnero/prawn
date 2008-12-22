@@ -7,13 +7,44 @@ require 'prawn/formatter/state'
 
 module Prawn
   module Formatter
+
+    # The Parser class is used by the formatting subsystem to take
+    # the raw tokens from the Lexer class and wrap them in
+    # "instructions", which are then used by the LayoutBuilder to
+    # determine how each token should be rendered.
+    #
+    # The parser also ensures that tags are opened and closed
+    # consistently. It is not forgiving at all--if you forget to
+    # close a tag, the parser will raise an exception (TagError).
+    # 
+    # It will also raise an exception if a tag is encountered with
+    # no style definition for it.
     class Parser
+      # This is the exception that gets raised when the parser cannot
+      # process a particular tag.
       class TagError < RuntimeError; end
 
       attr_reader :document
       attr_reader :styles
       attr_reader :state
 
+      # Creates a new parser associated with the given +document+, and which
+      # will parse the given +text+. The +options+ may include either of two
+      # optional keys:
+      #
+      # * :styles is used to specify the hash of tags and their associated
+      #   styles. Any tag not specified here will not be recognized by the
+      #   parser, and will cause an error if it is encountered in +text+.
+      # * :style is the default style for any text not otherwise wrapped by
+      #   tags.
+      #
+      # Example:
+      #
+      #   parser = Parser.new(@pdf, "...",
+      #       :styles => { :b => { :font_weight => :bold } },
+      #       :style => { :font_family => "Times-Roman" })
+      #
+      # See Formatter::State for a description of the supported style options.
       def initialize(document, text, options={})
         @document = document
         @lexer = Lexer.new(text)
@@ -27,6 +58,9 @@ module Prawn
         @tag_stack = []
       end
 
+      # Returns the next instruction from the stream. If there are no more
+      # instructions in the stream (e.g., the end has been encountered), this
+      # returns +nil+.
       def next
         return @saved.pop if @saved.any?
 
@@ -37,16 +71,24 @@ module Prawn
         end
       end
 
+      # "Ungets" the given +instruction+. This makes it so the next call to
+      # +next+ will return +instruction+. This is useful for backtracking.
       def push(instruction)
         @saved.push(instruction)
       end
 
+      # This is identical to +next+, except it does not consume the
+      # instruction. This means that +peek+ returns the instruction that will
+      # be returned by the next call to +next+. It is useful for testing
+      # the next instruction in the stream without advancing the stream.
       def peek
         save = self.next
         push(save) if save
         return save
       end
 
+      # Returns +true+ if the end of the stream has been reached. Subsequent
+      # calls to +peek+ or +next+ will return +nil+.
       def eos?
         peek.nil?
       end
@@ -99,5 +141,6 @@ module Prawn
           end
         end
     end
+
   end
 end
