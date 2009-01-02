@@ -41,7 +41,7 @@ module Prawn
         end
 
         def width(type=:all)
-          @width ||= @state.font.metrics.string_width(@state.font.metrics.type0? ? @text : encoded_text, @state.font_size, :kerning => @state.kerning?)
+          @width ||= @state.font.metrics.string_width(@text, @state.font_size, :kerning => @state.kerning?)
 
           case type
           when :discardable then discardable? ? @width : 0
