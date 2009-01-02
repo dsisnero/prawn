@@ -94,12 +94,6 @@ module Prawn
       end
 
       def apply!(text_object, cookies)
-        if cookies[:font] != [font_family, pdf_font_style, font_size]
-          cookies[:font] = [font_family, pdf_font_style, font_size]
-          font = document.font(font_family, :style => pdf_font_style)
-          text_object.font(font.identifier, font_size)
-        end
-
         if cookies[:color] != color
           cookies[:color] = color
           text_object.fill_color(color)
@@ -108,6 +102,15 @@ module Prawn
         if cookies[:vertical_align] != vertical_align
           cookies[:vertical_align] = vertical_align
           text_object.rise(vertical_align)
+        end
+      end
+
+      def apply_font!(text_object, cookies, subset)
+        if cookies[:font] != [font_family, pdf_font_style, font_size, subset]
+          cookies[:font] = [font_family, pdf_font_style, font_size, subset]
+          font = document.font(font_family, :style => pdf_font_style)
+          font.add_to_current_page(subset)
+          text_object.font(font.identifier_for(subset), font_size)
         end
       end
 
