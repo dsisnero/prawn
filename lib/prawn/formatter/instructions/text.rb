@@ -15,7 +15,7 @@ module Prawn
 
         def append(text)
           @text << text
-          @converted_text = nil
+          @encoded_text = nil
         end
 
         def spaces
@@ -41,7 +41,7 @@ module Prawn
         end
 
         def width(type=:all)
-          @width ||= @state.font.metrics.string_width(@state.font.metrics.type0? ? @text : converted_text, @state.font_size, :kerning => @state.kerning?)
+          @width ||= @state.font.metrics.string_width(@state.font.metrics.type0? ? @text : encoded_text, @state.font_size, :kerning => @state.kerning?)
 
           case type
           when :discardable then discardable? ? @width : 0
@@ -69,7 +69,10 @@ module Prawn
         def draw!(document, draw_state)
           @state.apply!(draw_state[:text], draw_state[:cookies])
 
-          draw_state[:text].show(converted_text)
+          encoded_text.each do |subset, chunk|
+            @state.apply_font!(draw_state[:text], draw_state[:cookies], subset)
+            draw_state[:text].show(chunk)
+          end
           draw_state[:dx] += width
 
           if state.text_align == :justify && draw_state[:padding]
@@ -79,8 +82,8 @@ module Prawn
 
         private
 
-          def converted_text
-            @converted_text ||= @state.font.metrics.convert_text(@text, :kerning => @state.kerning?)
+          def encoded_text
+            @encoded_text ||= @state.font.metrics.encode_text(@text, :kerning => @state.kerning?)
           end
       end
 
