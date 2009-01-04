@@ -10,6 +10,7 @@
 # This is free software. Please see the LICENSE and COPYING files for details.
 
 require 'prawn/encoding'
+require 'ttfunk/subset_collection'
 
 module Prawn
   class Font 
@@ -98,7 +99,7 @@ module Prawn
           
           kerned.map { |r| 
             i = r.is_a?(Array) ? r.pack("C*") : r 
-            i.force_encoding("ISO-8859-1") if i.respond_to?(:force_encoding)
+            i.force_encoding("Windows-1252") if i.respond_to?(:force_encoding)
             i.is_a?(Numeric) ? -i : i
           }                        
         end
@@ -154,13 +155,19 @@ module Prawn
           false
         end
 
-        # perform any changes to the string that need to happen
-        # before it is rendered to the canvas
+        # Perform any changes to the string that need to happen
+        # before it is rendered to the canvas. Returns an array of
+        # subset "chunks", where each chunk is an array of two elements.
+        # The first element is the font subset number, and the second
+        # is either a string or an array (for kerned text).
         #
-        # String *must* be encoded as WinAnsi       
+        # For Adobe fonts, there is only ever a single subset, so
+        # the first element of the array is "0", and the second is
+        # the string itself (or an array, if kerning is performed).
         #
-        def convert_text(text, options={})
-          options[:kerning] ? kern(text) : text
+        # The +text+ parameter must be in WinAnsi encoding (cp1252).
+        def encode_text(text, options={})
+          [[0, options[:kerning] ? kern(text) : text]]
         end
 
         private
@@ -215,30 +222,31 @@ module Prawn
       end
 
       class TTF < Metrics #:nodoc:  
-        
-        attr_accessor :ttf
+
+        attr_reader :ttf, :subsets
         
         def initialize(font)
-          @ttf = TTFunk::File.new(font)
+          @ttf              = TTFunk::File.open(font)
+          @subsets          = TTFunk::SubsetCollection.new(@ttf)
           @attributes       = {}
-          @glyph_widths     = {}
           @bounding_boxes   = {} 
           @char_widths      = {}   
-          @has_kerning_data = !! @ttf.kern? && @ttf.kern.sub_tables[0]
+          @has_kerning_data = !! @ttf.kerning.exists? && @ttf.kerning.tables.any?
         end
 
         def cmap
-          @cmap ||= @ttf.cmap.formats[4]
+          @cmap ||= @ttf.cmap.unicode.first or raise("no unicode cmap for font")
         end
         
+        # +string+ must be UTF8-encoded.
         def string_width(string, font_size, options = {})
           scale = font_size / 1000.0
           if options[:kerning]
-            kern(string,:skip_conversion => true).inject(0) do |s,r|
-              if r.is_a? String  
-                s + string_width(r, font_size, :kerning => false)
-              else 
+            kern(string).inject(0) do |s,r|
+              if r.is_a?(Numeric)
                 s + r * scale
+              else 
+                r.inject(s) { |s, u| s + character_width_by_code(u) } * scale
               end
             end
           else
@@ -248,94 +256,50 @@ module Prawn
           end
         end   
         
-        # TODO: NASTY. 
-        def kern(string,options={})   
+        # +string+ must be UTF8-encoded.
+        #
+        # Returns an array. If an element is a numeric, it represents the
+        # kern amount to inject at that position. Otherwise, the element
+        # is an array of UTF-16 characters.
+        def kern(string)
           a = []
           
           string.unpack("U*").each do |r|
-            if a.last.is_a? Array
-              if kern = kern_pairs_table[[cmap[a.last.last], cmap[r]]] 
-                kern *= scale_factor
-                a << kern << [r]
-              else
-                a.last << r
-              end
-            else
+            if a.empty?
               a << [r]
-            end
-            a
-          end
-          
-          a.map { |r| 
-            if options[:skip_conversion]
-              r.is_a?(Array) ? r.pack("U*") : r
+            elsif (kern = kern_pairs_table[[cmap[a.last.last], cmap[r]]])
+              kern *= scale_factor
+              a << -kern << [r]
             else
-              i = r.is_a?(Array) ? r.pack("U*") : r 
-              x = if i.is_a?(String)
-                unicode_codepoints = i.unpack("U*")
-                glyph_codes = unicode_codepoints.map { |u| cmap[u] }
-                glyph_codes.pack("n*")
-              else
-                i
-              end
-              x.is_a?(Numeric) ? -x : x 
+              a.last << r
             end
-          }
-        end
-
-        def glyph_widths
-          glyphs = cmap.values.uniq.sort
-          first_glyph = glyphs.shift
-          widths = [first_glyph, [Integer(hmtx[first_glyph][0] * scale_factor)]] 
-          prev_glyph = first_glyph
-          glyphs.each do |glyph|
-            unless glyph == prev_glyph + 1
-              widths << glyph
-              widths << []
-            end
-            widths.last << Integer(hmtx[glyph][0] * scale_factor )
-            prev_glyph = glyph
           end
-          widths
+
+          a
         end
 
         def bbox
-          [:x_min, :y_min, :x_max, :y_max].map do |atr| 
-            Integer(@ttf.head.send(atr)) * scale_factor
-          end
+          @bbox ||= @ttf.bbox.map { |i| Integer(i * scale_factor) }
         end
 
         def ascender
-          Integer(@ttf.hhea.ascent * scale_factor)
+          @ascender ||= Integer(@ttf.ascent * scale_factor)
         end
 
         def descender
-          Integer(@ttf.hhea.descent * scale_factor)
+          @descender ||= Integer(@ttf.descent * scale_factor)
         end      
         
         def line_gap
-          Integer(@ttf.hhea.line_gap * scale_factor)
+          @line_gap ||= Integer(@ttf.line_gap * scale_factor)
         end
 
         def basename
           @basename ||= @ttf.name.postscript_name
         end
 
-        # TODO: instead of creating a map that contains every glyph in the font,
-        #       only include the glyphs that were used
-        def to_unicode_cmap
-          return @to_unicode if @to_unicode
-          @to_unicode = Prawn::Font::CMap.new
-          unicode_for_glyph = cmap.invert
-          glyphs = unicode_for_glyph.keys.uniq.sort
-          glyphs.each do |glyph|
-            @to_unicode[unicode_for_glyph[glyph]] = glyph
-          end
-          @to_unicode
-        end
-        
         def kern_pairs_table
-          @kerning_data ||= has_kerning_data? ? @ttf.kern.sub_tables[0] : {}
+          @kerning_data ||= has_kerning_data? ? @ttf.kerning.tables.first.pairs : {}
         end
 
         def has_kerning_data?
@@ -346,30 +310,111 @@ module Prawn
           true
         end
 
-        def convert_text(text,options)
+        # Perform any changes to the string that need to happen
+        # before it is rendered to the canvas. Returns an array of
+        # subset "chunks", where the even-numbered indices are the
+        # font subset number, and the following entry element is
+        # either a string or an array (for kerned text).
+        #
+        # The +text+ parameter must be UTF8-encoded.
+        def encode_text(text,options={})
           text = text.chomp
-          if options[:kerning] 
-            kern(text)         
-          else     
-            unicode_codepoints = text.unpack("U*")
-            glyph_codes = unicode_codepoints.map { |u| cmap[u] }
-            text = glyph_codes.pack("n*")
+
+          if options[:kerning]
+            last_subset = nil
+            kern(text).inject([]) do |result, element| 
+              if element.is_a?(Numeric)
+                result.last[1] = [result.last[1]] unless result.last[1].is_a?(Array)
+                result.last[1] << element
+                result
+              else
+                encoded = @subsets.encode(element)
+
+                if encoded.first[0] == last_subset
+                  result.last[1] << encoded.first[1]
+                  encoded.shift
+                end
+
+                if encoded.any?
+                  last_subset = encoded.last[0]
+                  result + encoded
+                else
+                  result
+                end
+              end
+            end
+          else
+            @subsets.encode(text.unpack("U*"))
           end
         end
         
-        private
+        # not sure how to compute this for true-type fonts...
+        def stemV
+          0
+        end
+
+        def italic_angle
+          @italic_angle ||= if @ttf.postscript.exists?
+            raw = @ttf.postscript.italic_angle
+            hi, low = raw >> 16, raw & 0xFF
+            hi = -((hi ^ 0xFFFF) + 1) if hi & 0x8000 != 0
+            "#{hi}.#{low}".to_f
+          else
+            0
+          end
+        end
+
+        def cap_height
+          @cap_height ||= begin
+            height = @ttf.os2.exists? && @ttf.os2.cap_height || 0
+            height == 0 ? ascender : height
+          end
+        end
+
+        def x_height
+          # FIXME: ascender/2 is NOT a good way to compute this.
+          @ttf.os2.exists? && @ttf.os2.x_height || ascender/2
+        end
+
+        def family_class
+          @family_class ||= (@ttf.os2.exists? && @ttf.os2.family_class || 0) >> 8
+        end
+
+        def serif?
+          @serif ||= [1,2,3,4,5,7].include?(family_class)
+        end
+
+        def script?
+          @script ||= family_class == 10
+        end
+
+        def pdf_flags
+          @flags ||= begin
+            flags = 0
+            flags |= 0x0001 if @ttf.postscript.fixed_pitch?
+            flags |= 0x0002 if serif?
+            flags |= 0x0008 if script?
+            flags |= 0x0040 if italic_angle != 0
+            flags |= 0x0004 # assume the font contains at least some non-latin characters
+          end
+        end
+
+        def cid_to_gid_map
+          max = cmap.code_map.keys.max
+          (0..max).map { |cid| cmap[cid] }.pack("n*")
+        end
 
         def hmtx
-          @hmtx ||= @ttf.hmtx.values
-        end         
-        
+          @hmtx ||= @ttf.horizontal_metrics
+        end
+
         def character_width_by_code(code)    
           return 0 unless cmap[code]
-          @char_widths[code] ||= Integer(hmtx[cmap[code]][0] * scale_factor)           
+          @char_widths[code] ||= Integer(hmtx.widths[cmap[code]] * scale_factor)
         end                   
 
         def scale_factor
-          @scale ||= 1000 * Float(@ttf.head.units_per_em)**-1
+          @scale ||= 1000.0 / @ttf.header.units_per_em
         end
 
       end
